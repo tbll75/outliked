@@ -3,7 +3,7 @@ import { getBoard } from "@/lib/store";
 import { formatLikes } from "@/lib/config";
 
 export const runtime = "nodejs";
-export const alt = "outliked — the leaderboard where likes are the only currency";
+export const alt = "outliked: the leaderboard where likes are the only currency";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -92,7 +92,7 @@ export default async function OgImage() {
               padding: "16px 32px",
             }}
           >
-            👑 #1 is unclaimed — list your site free
+            👑 #1 is unclaimed. list your site free
           </div>
         )}
         <div

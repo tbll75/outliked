@@ -101,7 +101,7 @@ export default async function Home() {
               how it works
             </a>
             <Link href="/list" className="btn btn-primary">
-              list your site — free
+              list your site, free
             </Link>
           </div>
         </nav>
@@ -119,7 +119,7 @@ export default async function Home() {
           </h1>
           <p className="hero-sub">
             The leaderboard where <b>likes are the only currency</b>. Listing is
-            free — you just have to tweet it. The most-liked announcement tweet
+            free. You just have to tweet it. The most-liked announcement tweet
             holds <b>#1</b>. Until someone outlikes it.
           </p>
           <div className="hero-cta">
@@ -150,7 +150,7 @@ export default async function Home() {
           </div>
         </section>
 
-        {newest.length > 0 && (
+        {newest.length >= 3 && (
           <div className="ticker">
             <div className="ticker-track">
               {[...newest, ...newest].map((l, i) => (
@@ -181,7 +181,7 @@ export default async function Home() {
                 this is the cheapest #1 will ever be.
               </p>
               <Link href="/list" className="btn btn-primary btn-big">
-                be first — it&apos;s free
+                be first, it&apos;s free
               </Link>
             </div>
           ) : (
@@ -213,7 +213,7 @@ export default async function Home() {
               <div className="step">STEP 2</div>
               <h3>Tweet the announcement 📣</h3>
               <p>
-                We pre-write the tweet for you. Post it — that tweet <i>is</i>{" "}
+                We pre-write the tweet for you. Post it. That tweet <i>is</i>{" "}
                 your listing. No tweet, no listing.
               </p>
             </div>
@@ -221,7 +221,7 @@ export default async function Home() {
               <div className="step">STEP 3</div>
               <h3>Get liked or get outliked 💗</h3>
               <p>
-                Every like on your tweet is a vote. Most-liked tweet holds #1 —
+                Every like on your tweet is a vote. Most-liked tweet holds #1
                 until someone outlikes it. Rally your people.
               </p>
             </div>
@@ -232,7 +232,7 @@ export default async function Home() {
       <footer>
         <div className="wrap">
           <p>
-            likes are the only currency. <b>outliked</b> — season 1.
+            likes are the only currency. <b>outliked</b>, season 1.
           </p>
           <div className="foot-row">
             <a href="https://github.com/tbll75/outliked" target="_blank" rel="noopener">

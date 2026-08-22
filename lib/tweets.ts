@@ -6,8 +6,10 @@ const UA =
 export function parseTweetUrl(
   raw: string
 ): { id: string; handle: string } | null {
+  let s = raw.trim();
+  if (!/^https?:\/\//i.test(s)) s = `https://${s}`;
   try {
-    const u = new URL(raw.trim());
+    const u = new URL(s);
     if (!/(^|\.)((twitter)|(x))\.com$/.test(u.hostname)) return null;
     const m = u.pathname.match(/^\/([A-Za-z0-9_]{1,15})\/status(?:es)?\/(\d{5,25})/);
     if (!m) return null;
@@ -18,7 +20,7 @@ export function parseTweetUrl(
 }
 
 // ---------------------------------------------------------------------------
-// Path 1 — Twitter syndication CDN (free, no auth, per-tweet)
+// Path 1: Twitter syndication CDN (free, no auth, per-tweet)
 // ---------------------------------------------------------------------------
 
 function syndicationToken(id: string): string {
@@ -57,7 +59,7 @@ export async function fetchTweetSyndication(
 }
 
 // ---------------------------------------------------------------------------
-// Path 2 — Apify apidojo/tweet-scraper (batch, robust, needs APIFY_TOKEN)
+// Path 2: Apify apidojo/tweet-scraper (batch, robust, needs APIFY_TOKEN)
 // ---------------------------------------------------------------------------
 
 const APIFY_ACTOR = "apidojo~tweet-scraper";
@@ -142,7 +144,7 @@ export async function fetchTweetsBatch(
   return result;
 }
 
-/** Expand t.co links by following redirects — backup when entities are absent. */
+/** Expand t.co links by following redirects, as backup when entities are absent. */
 export async function expandTcoLinks(text: string): Promise<string[]> {
   const tcos = text.match(/https:\/\/t\.co\/[A-Za-z0-9]+/g) ?? [];
   const out: string[] = [];

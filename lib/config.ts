@@ -31,7 +31,7 @@ export function formatLikes(n: number): string {
 
 export function buildAnnouncementTweet(name: string, site: string): string {
   return [
-    `i just listed ${name} on ${APP_NAME} — the leaderboard where likes are the only currency.`,
+    `i just listed ${name} on ${APP_NAME}, the leaderboard where likes are the only currency.`,
     ``,
     `every like on this tweet pushes it closer to #1.`,
     `do your thing 💗`,

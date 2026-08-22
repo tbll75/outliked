@@ -98,7 +98,7 @@ export function ListFlow() {
       setPhase("done");
       fireConfetti();
     } catch {
-      setError("Network hiccup — try again.");
+      setError("Network hiccup. Try again.");
     } finally {
       setBusy(false);
     }
@@ -131,7 +131,7 @@ export function ListFlow() {
     );
   }
 
-  const stepClass = (self: Phase, order: number) => {
+  const stepClass = (order: number) => {
     const current = phase === "form" ? 1 : phase === "tweet" ? 2 : 3;
     if (order < current) return "step-card done";
     if (order === current) return "step-card active";
@@ -140,7 +140,7 @@ export function ListFlow() {
 
   return (
     <div className="steps">
-      <div className={stepClass("form", 1)}>
+      <div className={stepClass(1)}>
         <div className="step-head">
           <div className="step-num">1</div>
           <h3>your site</h3>
@@ -183,7 +183,7 @@ export function ListFlow() {
         )}
       </div>
 
-      <div className={stepClass("tweet", 2)}>
+      <div className={stepClass(2)}>
         <div className="step-head">
           <div className="step-num">2</div>
           <h3>post the announcement</h3>
@@ -191,13 +191,13 @@ export function ListFlow() {
         {(phase === "tweet" || phase === "verify") && (
           <>
             <div className="field">
-              <label>your tweet — edit it, make it yours</label>
+              <label>your tweet. edit it, make it yours</label>
               <textarea
                 value={tweetText}
                 onChange={(e) => setTweetText(e.target.value)}
               />
               <p className="hint">
-                must mention {normalized?.domain ?? "your site"} or outliked —
+                must mention {normalized?.domain ?? "your site"} or outliked.
                 that&apos;s how we verify it&apos;s real.
               </p>
             </div>
@@ -208,7 +208,7 @@ export function ListFlow() {
         )}
       </div>
 
-      <div className={stepClass("verify", 3)}>
+      <div className={stepClass(3)}>
         <div className="step-head">
           <div className="step-num">3</div>
           <h3>paste the tweet link</h3>

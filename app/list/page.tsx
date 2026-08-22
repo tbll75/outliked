@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ListFlow } from "./ListFlow";
 
 export const metadata: Metadata = {
-  title: "list your site — outliked",
+  title: "list your site · outliked",
   description:
     "List your site on the outliked leaderboard for free. One tweet is the price of admission.",
 };
