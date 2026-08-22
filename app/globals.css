@@ -807,6 +807,9 @@ footer .foot-row {
 /* ---------- responsive ---------- */
 
 @media (max-width: 720px) {
+  .nav .ghost-link { display: none; }
+  .nav .btn { padding: 10px 16px; font-size: 14px; }
+  .logo { font-size: 19px; }
   .row {
     grid-template-columns: 34px 36px 1fr auto;
     gap: 10px;
