@@ -1,0 +1,256 @@
+import Link from "next/link";
+import { after } from "next/server";
+import { boardAgeSeconds, getBoard, rebuildBoard, STALE_AFTER_SECONDS } from "@/lib/store";
+import { formatLikes } from "@/lib/config";
+import type { Listing } from "@/lib/types";
+import { AutoRefresh, TimeAgo } from "./live";
+
+export const dynamic = "force-dynamic";
+
+function Row({ l, rank, aboveLikes }: { l: Listing; rank: number; aboveLikes?: number }) {
+  const medal = rank <= 3 ? `r${rank}` : "";
+  const gap = aboveLikes !== undefined ? aboveLikes - l.likes + 1 : 0;
+  return (
+    <div className={`row ${medal}`}>
+      <div className="rank">{rank === 1 ? "👑" : `#${rank}`}</div>
+      <div className="favicon">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`https://www.google.com/s2/favicons?domain=${l.domain}&sz=64`}
+          alt=""
+          loading="lazy"
+        />
+      </div>
+      <div className="row-main">
+        <div className="row-name">
+          <a href={l.site} target="_blank" rel="noopener">
+            {l.name}
+          </a>
+          <span className="row-domain">{l.domain}</span>
+        </div>
+        {l.pitch && <div className="row-pitch">{l.pitch}</div>}
+      </div>
+      <a
+        className="row-author"
+        href={l.tweetUrl}
+        target="_blank"
+        rel="noopener"
+        title="View the announcement tweet"
+      >
+        {l.authorAvatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={l.authorAvatar} alt="" loading="lazy" />
+        ) : null}
+        @{l.authorHandle}
+      </a>
+      <div className="row-likes">
+        <div className="likes-num">
+          <span className="heart">♥</span>
+          {formatLikes(l.likes)}
+        </div>
+        {rank === 1 ? (
+          <a
+            className="boost"
+            href={`https://x.com/intent/like?tweet_id=${l.id}`}
+            target="_blank"
+            rel="noopener"
+          >
+            keep them #1
+          </a>
+        ) : (
+          <a
+            className="boost"
+            href={`https://x.com/intent/like?tweet_id=${l.id}`}
+            target="_blank"
+            rel="noopener"
+            title={`${gap} more like${gap === 1 ? "" : "s"} to overtake #${rank - 1}`}
+          >
+            ♥ boost
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default async function Home() {
+  const board = await getBoard();
+  if (boardAgeSeconds(board) > STALE_AFTER_SECONDS && board.listings.length > 0) {
+    after(async () => {
+      try {
+        await rebuildBoard();
+      } catch (e) {
+        console.error("background refresh failed", e);
+      }
+    });
+  }
+  const { listings } = board;
+  const newest = [...listings]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 10);
+
+  return (
+    <>
+      <header className="wrap">
+        <nav className="nav">
+          <Link href="/" className="logo">
+            <span className="heart">💗</span> outliked
+          </Link>
+          <div className="nav-links">
+            <a className="ghost-link" href="#how">
+              how it works
+            </a>
+            <Link href="/list" className="btn btn-primary">
+              list your site — free
+            </Link>
+          </div>
+        </nav>
+      </header>
+
+      <main className="wrap">
+        <section className="hero">
+          <div className="hero-badge">
+            <span className="live-dot" /> season 1 · zero dollars · pure clout
+          </div>
+          <h1>
+            get <span className="grad">outliked</span>
+            <br />
+            or get famous
+          </h1>
+          <p className="hero-sub">
+            The leaderboard where <b>likes are the only currency</b>. Listing is
+            free — you just have to tweet it. The most-liked announcement tweet
+            holds <b>#1</b>. Until someone outlikes it.
+          </p>
+          <div className="hero-cta">
+            <Link href="/list" className="btn btn-primary btn-big">
+              claim your spot 💗
+            </Link>
+            <a href="#board" className="btn btn-outline btn-big">
+              see the board
+            </a>
+          </div>
+          <p className="hero-note">
+            no signup · no payment · one tweet and you&apos;re live
+          </p>
+        </section>
+
+        <section className="stats">
+          <div className="stat">
+            <div className="num">{listings.length}</div>
+            <div className="lbl">sites listed</div>
+          </div>
+          <div className="stat">
+            <div className="num pink">♥ {formatLikes(board.totalLikes)}</div>
+            <div className="lbl">likes in play</div>
+          </div>
+          <div className="stat">
+            <div className="num">$0</div>
+            <div className="lbl">spent, ever</div>
+          </div>
+        </section>
+
+        {newest.length > 0 && (
+          <div className="ticker">
+            <div className="ticker-track">
+              {[...newest, ...newest].map((l, i) => (
+                <span className="ticker-item" key={`${l.id}-${i}`}>
+                  🔥 <b>{l.name}</b> listed by @{l.authorHandle} ·{" "}
+                  <span className="likes">♥ {formatLikes(l.likes)}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <section className="board" id="board">
+          <div className="board-head">
+            <h2>the board</h2>
+            <div className="board-meta">
+              <span className="live-dot" />
+              <TimeAgo iso={board.updatedAt} /> · likes update automatically
+            </div>
+          </div>
+          {listings.length === 0 ? (
+            <div className="empty">
+              <div className="big">👑</div>
+              <h3>nobody has claimed #1 yet</h3>
+              <p>
+                the first listing takes the crown with a single like.
+                <br />
+                this is the cheapest #1 will ever be.
+              </p>
+              <Link href="/list" className="btn btn-primary btn-big">
+                be first — it&apos;s free
+              </Link>
+            </div>
+          ) : (
+            <div className="rows">
+              {listings.map((l, i) => (
+                <Row
+                  key={l.id}
+                  l={l}
+                  rank={i + 1}
+                  aboveLikes={i > 0 ? listings[i - 1].likes : undefined}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="how" id="how">
+          <h2>how it works</h2>
+          <div className="how-grid">
+            <div className="how-card">
+              <div className="step">STEP 1</div>
+              <h3>Drop your link 🔗</h3>
+              <p>
+                Your site, your project, your thing. Name it, pitch it in one
+                line. Takes 30 seconds, costs nothing.
+              </p>
+            </div>
+            <div className="how-card">
+              <div className="step">STEP 2</div>
+              <h3>Tweet the announcement 📣</h3>
+              <p>
+                We pre-write the tweet for you. Post it — that tweet <i>is</i>{" "}
+                your listing. No tweet, no listing.
+              </p>
+            </div>
+            <div className="how-card">
+              <div className="step">STEP 3</div>
+              <h3>Get liked or get outliked 💗</h3>
+              <p>
+                Every like on your tweet is a vote. Most-liked tweet holds #1 —
+                until someone outlikes it. Rally your people.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <div className="wrap">
+          <p>
+            likes are the only currency. <b>outliked</b> — season 1.
+          </p>
+          <div className="foot-row">
+            <a href="https://github.com/tbll75/outliked" target="_blank" rel="noopener">
+              open source
+            </a>
+            <a href="/api/leaderboard" target="_blank">
+              public api
+            </a>
+            <span>
+              inspired by outbid.lol · built with{" "}
+              <a href="https://claude.com/claude-code" target="_blank" rel="noopener">
+                claude code
+              </a>
+            </span>
+          </div>
+        </div>
+      </footer>
+      <AutoRefresh seconds={60} />
+    </>
+  );
+}
