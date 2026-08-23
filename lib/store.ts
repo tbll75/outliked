@@ -98,6 +98,17 @@ export async function getAllListings(): Promise<Listing[]> {
   return [...seen.values()];
 }
 
+/** True when the listing blob exists, even if the cached board doesn't
+ *  reflect it yet — board.json overwrites take up to ~60s to propagate,
+ *  while newly created blobs show up in list() almost immediately. */
+export async function listingExists(id: string): Promise<boolean> {
+  const { blobs } = await list({
+    prefix: `${LISTING_PREFIX}${id}.json`,
+    limit: 1,
+  });
+  return blobs.length > 0;
+}
+
 export async function readBoard(): Promise<Board | null> {
   try {
     const { blobs } = await list({ prefix: BOARD_KEY, limit: 1 });

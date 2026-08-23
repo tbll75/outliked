@@ -56,6 +56,7 @@ export function ListFlow() {
   const [alertEmail, setAlertEmail] = useState("");
   const [joinNewsletter, setJoinNewsletter] = useState(true);
   const [alertState, setAlertState] = useState<AlertState>("idle");
+  const [alertError, setAlertError] = useState("");
 
   const normalized = useMemo(() => normalizeSiteUrl(site), [site]);
 
@@ -115,6 +116,7 @@ export function ListFlow() {
 
   const subscribeAlerts = async () => {
     setAlertState("saving");
+    setAlertError("");
     try {
       const res = await fetch("/api/alerts", {
         method: "POST",
@@ -126,8 +128,14 @@ export function ListFlow() {
         }),
       });
       const j = await res.json();
-      setAlertState(res.ok && j.ok ? "done" : "error");
+      if (res.ok && j.ok) {
+        setAlertState("done");
+      } else {
+        setAlertError(j.error ?? "Couldn't save that. Try again?");
+        setAlertState("error");
+      }
     } catch {
+      setAlertError("Network hiccup. Try again?");
       setAlertState("error");
     }
   };
@@ -181,9 +189,7 @@ export function ListFlow() {
                 also join Tibo&apos;s newsletter
               </label>
               {alertState === "error" && (
-                <div className="error-box">
-                  couldn&apos;t save that. try again?
-                </div>
+                <div className="error-box">{alertError}</div>
               )}
             </>
           )}

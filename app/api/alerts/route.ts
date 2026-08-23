@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { addSubscriber, SubscriberLimitError } from "@/lib/alerts";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
-import { getBoard } from "@/lib/store";
+import { getBoard, listingExists } from "@/lib/store";
 import { parseTweetUrl } from "@/lib/tweets";
 
 export const maxDuration = 30;
@@ -54,10 +54,19 @@ export async function POST(req: Request) {
 
   const board = await getBoard();
   const index = board.listings.findIndex((l) => l.id === tweet.id);
-  if (index === -1) return err(404, "That listing isn't on the board.");
+  // A just-submitted listing can be missing from the cached board for up to
+  // ~60s (Blob overwrite propagation), so the listing blob is the source of
+  // truth; the board only provides the rank baseline for alerts.
+  let rank = index + 1;
+  if (index === -1) {
+    if (!(await listingExists(tweet.id))) {
+      return err(404, "That listing isn't on the board.");
+    }
+    rank = board.listings.length + 1;
+  }
 
   try {
-    await addSubscriber(tweet.id, email, index + 1);
+    await addSubscriber(tweet.id, email, rank);
   } catch (e) {
     if (e instanceof SubscriberLimitError) {
       return err(429, "Too many subscribers for this listing.");
