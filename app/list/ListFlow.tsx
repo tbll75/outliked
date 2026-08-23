@@ -198,6 +198,11 @@ export function ListFlow() {
           <a className="btn btn-primary btn-big" href="/">
             see the board
           </a>
+          {normalized && (
+            <a className="btn btn-outline btn-big" href={`/card/${normalized.domain}`}>
+              flex your rank 📤
+            </a>
+          )}
         </div>
       </div>
     );

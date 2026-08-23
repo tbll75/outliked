@@ -71,7 +71,12 @@ type ApifyTweet = {
   text?: string;
   likeCount?: number;
   entities?: { urls?: { expanded_url?: string }[] };
-  author?: { userName?: string; name?: string; profilePicture?: string };
+  author?: {
+    userName?: string;
+    name?: string;
+    profilePicture?: string;
+    followers?: number;
+  };
 };
 
 export async function fetchTweetsApify(
@@ -108,6 +113,8 @@ export async function fetchTweetsApify(
         authorHandle: t.author?.userName ?? "",
         authorName: t.author?.name ?? "",
         authorAvatar: t.author?.profilePicture ?? "",
+        authorFollowers:
+          typeof t.author?.followers === "number" ? t.author.followers : undefined,
       });
     }
     return out;
@@ -143,6 +150,30 @@ export async function fetchTweetsBatch(
     for (const t of fetched) if (t) result.set(t.id, t);
   }
   return result;
+}
+
+const FXTWITTER_ENDPOINT = (id: string) => `https://api.fxtwitter.com/status/${id}`;
+const FOLLOWERS_TIMEOUT_MS = 4000;
+
+/** Best-effort author follower count via the public fxtwitter API, used when
+ *  the tweet source didn't include it (syndication never does). */
+export async function fetchAuthorFollowers(id: string): Promise<number | undefined> {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), FOLLOWERS_TIMEOUT_MS);
+    const res = await fetch(FXTWITTER_ENDPOINT(id), {
+      headers: { "user-agent": UA },
+      signal: ctrl.signal,
+      cache: "no-store",
+    });
+    clearTimeout(timer);
+    if (!res.ok) return undefined;
+    const j = await res.json();
+    const followers = j?.tweet?.author?.followers;
+    return typeof followers === "number" ? followers : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Expand t.co links by following redirects, as backup when entities are absent. */

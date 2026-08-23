@@ -150,6 +150,7 @@ function overlayCachedLikes(listings: Listing[], cached: Board | null): void {
       const cached = c.lastRefreshedAt ? new Date(c.lastRefreshedAt).getTime() : 0;
       if (cached > own) l.lastRefreshedAt = c.lastRefreshedAt;
       if (c.authorAvatar) l.authorAvatar = c.authorAvatar;
+      if (l.authorFollowers === undefined) l.authorFollowers = c.authorFollowers;
     }
   }
 }
@@ -190,6 +191,7 @@ export async function rebuildBoard(force = false): Promise<Board> {
       if (t) {
         l.likes = t.likes;
         if (t.authorAvatar) l.authorAvatar = t.authorAvatar;
+        if (t.authorFollowers !== undefined) l.authorFollowers = t.authorFollowers;
       }
       l.lastRefreshedAt = nowIso;
     }

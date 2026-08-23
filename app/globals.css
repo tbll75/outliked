@@ -376,6 +376,56 @@ button {
   margin: 34px 0 60px;
 }
 
+.league-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.league-tab {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.league-tab:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.league-tab.active {
+  background: rgba(255, 46, 140, 0.12);
+  border-color: rgba(255, 46, 140, 0.4);
+  color: var(--pink-soft);
+}
+
+.league-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 44px 20px;
+  background: var(--card);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+a.rank:hover {
+  transform: scale(1.15);
+  transition: transform 0.12s;
+}
+
 .board-head {
   display: flex;
   align-items: baseline;
@@ -853,6 +903,41 @@ footer .foot-row {
 .success-card p {
   color: var(--muted);
   margin-bottom: 26px;
+}
+
+.card-hero {
+  text-align: center;
+  padding: 60px 0 40px;
+}
+
+.card-hero .rank-line {
+  font-size: clamp(56px, 10vw, 110px);
+  font-weight: 700;
+  letter-spacing: -4px;
+  line-height: 1;
+}
+
+.card-hero .domain-line {
+  font-size: clamp(30px, 6vw, 54px);
+  font-weight: 700;
+  letter-spacing: -1.5px;
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  margin-top: 8px;
+}
+
+.card-hero .likes-line {
+  font-size: 24px;
+  color: var(--pink-soft);
+  font-weight: 700;
+  margin-top: 14px;
+}
+
+.card-hero .by-line {
+  color: var(--muted);
+  margin-top: 8px;
 }
 
 .alert-box {

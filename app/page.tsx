@@ -2,73 +2,11 @@ import Link from "next/link";
 import { after } from "next/server";
 import { boardNeedsRefresh, getBoard, rebuildBoard } from "@/lib/store";
 import { formatLikes } from "@/lib/config";
-import type { Listing } from "@/lib/types";
-import { Favicon } from "./Favicon";
+import { Board } from "./Board";
 import { AutoRefresh, TimeAgo } from "./live";
 import { ClaimBar } from "./ClaimBar";
 
 export const dynamic = "force-dynamic";
-
-function Row({ l, rank, aboveLikes }: { l: Listing; rank: number; aboveLikes?: number }) {
-  const medal = rank <= 3 ? `r${rank}` : "";
-  const gap = aboveLikes !== undefined ? aboveLikes - l.likes + 1 : 0;
-  return (
-    <div className={`row ${medal}`}>
-      <div className="rank">{rank === 1 ? "👑" : `#${rank}`}</div>
-      <div className="favicon">
-        <Favicon domain={l.domain} hasFavicon={l.hasFavicon} />
-      </div>
-      <div className="row-main">
-        <div className="row-name">
-          <a href={l.site} target="_blank" rel="noopener">
-            {l.name}
-          </a>
-          {l.name !== l.domain && <span className="row-domain">{l.domain}</span>}
-        </div>
-        {l.pitch && <div className="row-pitch">{l.pitch}</div>}
-      </div>
-      <a
-        className="row-author"
-        href={l.tweetUrl}
-        target="_blank"
-        rel="noopener"
-        title="View the announcement tweet"
-      >
-        {l.authorAvatar ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={l.authorAvatar} alt="" loading="lazy" />
-        ) : null}
-        @{l.authorHandle}
-      </a>
-      <div className="row-likes">
-        <div className="likes-num">
-          <span className="heart">♥</span>
-          {formatLikes(l.likes)}
-        </div>
-        {rank === 1 ? (
-          <a
-            className="boost"
-            href={`https://x.com/intent/like?tweet_id=${l.id}`}
-            target="_blank"
-            rel="noopener"
-          >
-            keep them #1
-          </a>
-        ) : (
-          <a
-            className="boost"
-            href={`https://x.com/intent/like?tweet_id=${l.id}`}
-            target="_blank"
-            rel="noopener"
-            title={`${gap} more like${gap === 1 ? "" : "s"} to overtake #${rank - 1}`}
-          >
-            ♥ boost
-          </a>
-        )}
-      </div>
-    </div>
-  );
-}
 
 export default async function Home() {
   const board = await getBoard();
@@ -170,16 +108,7 @@ export default async function Home() {
               <ClaimBar />
             </div>
           ) : (
-            <div className="rows">
-              {listings.map((l, i) => (
-                <Row
-                  key={l.id}
-                  l={l}
-                  rank={i + 1}
-                  aboveLikes={i > 0 ? listings[i - 1].likes : undefined}
-                />
-              ))}
-            </div>
+            <Board listings={listings} />
           )}
         </section>
 

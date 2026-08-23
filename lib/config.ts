@@ -29,6 +29,20 @@ export function normalizeSiteUrl(raw: string): { site: string; domain: string } 
   }
 }
 
+export const LEAGUES = [
+  { id: "0-1k", label: "0–1k", min: 0, max: 1_000 },
+  { id: "1k-10k", label: "1k–10k", min: 1_000, max: 10_000 },
+  { id: "10k-100k", label: "10k–100k", min: 10_000, max: 100_000 },
+  { id: "100k+", label: "100k+", min: 100_000, max: Infinity },
+];
+
+export function leagueIdForFollowers(followers: number): string {
+  for (const league of LEAGUES) {
+    if (followers < league.max) return league.id;
+  }
+  return LEAGUES[LEAGUES.length - 1].id;
+}
+
 export function formatLikes(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
   if (n >= 10_000) return `${Math.round(n / 1000)}k`;

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { after } from "next/server";
 import { addListing, ListingConflictError, rebuildBoard } from "@/lib/store";
-import { expandTcoLinks, fetchTweet, parseTweetUrl } from "@/lib/tweets";
+import {
+  expandTcoLinks,
+  fetchAuthorFollowers,
+  fetchTweet,
+  parseTweetUrl,
+} from "@/lib/tweets";
 import { APP_DOMAIN, APP_NAME, normalizeSiteUrl } from "@/lib/config";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
 import { checkFavicon, fetchSitePitch } from "@/lib/site-meta";
@@ -63,9 +68,12 @@ export async function POST(req: Request) {
       `That tweet doesn't mention ${domain}. The announcement has to name the site it's listing.`
     );
 
-  const [pitch, hasFavicon] = await Promise.all([
+  const [pitch, hasFavicon, followers] = await Promise.all([
     fetchSitePitch(site),
     checkFavicon(domain),
+    data.authorFollowers !== undefined
+      ? Promise.resolve(data.authorFollowers)
+      : fetchAuthorFollowers(data.id),
   ]);
 
   const listing: Listing = {
@@ -81,6 +89,7 @@ export async function POST(req: Request) {
     likes: data.likes,
     createdAt: new Date().toISOString(),
     hasFavicon,
+    authorFollowers: followers,
   };
 
   try {

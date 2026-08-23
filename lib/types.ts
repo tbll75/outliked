@@ -12,6 +12,7 @@ export type Listing = {
   createdAt: string; // ISO, when listed
   lastRefreshedAt?: string; // ISO, when likes were last re-fetched
   hasFavicon?: boolean; // false when Google only has its generic globe
+  authorFollowers?: number; // author's follower count, when known
 };
 
 export type Board = {
@@ -28,4 +29,5 @@ export type TweetData = {
   authorHandle: string;
   authorName: string;
   authorAvatar: string;
+  authorFollowers?: number;
 };
