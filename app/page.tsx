@@ -234,9 +234,9 @@ export default async function Home() {
               public api
             </a>
             <span>
-              inspired by outbid.lol · built with{" "}
-              <a href="https://claude.com/claude-code" target="_blank" rel="noopener">
-                claude code
+              inspired by outbid.lol · built by{" "}
+              <a href="https://x.com/tibo_maker" target="_blank" rel="noopener">
+                tibo_maker
               </a>
             </span>
           </div>
