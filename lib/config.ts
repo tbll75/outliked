@@ -37,12 +37,14 @@ export function formatLikes(n: number): string {
 }
 
 export function buildAnnouncementTweet(domain: string): string {
+  // Unique URL per announcement: X caches link cards per exact URL, so a
+  // shared bare APP_URL would pin every tweet to whatever card X cached first.
   return [
     `i just listed ${domain} on ${APP_NAME}, the leaderboard where you participate by posting and win based on likes.`,
     ``,
     `every like on this tweet pushes it closer to #1.`,
     `do your thing 💗`,
     ``,
-    `${APP_URL}`,
+    `${APP_URL}/?via=${encodeURIComponent(domain)}`,
   ].join("\n");
 }
