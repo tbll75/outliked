@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { buildAnnouncementTweet, normalizeSiteUrl } from "@/lib/config";
 
 type Phase = "form" | "tweet" | "verify" | "done";
+type AlertState = "idle" | "saving" | "done" | "error";
 
 function fireConfetti() {
   const c = document.createElement("canvas");
@@ -53,6 +53,9 @@ export function ListFlow() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [rank, setRank] = useState(0);
+  const [alertEmail, setAlertEmail] = useState("");
+  const [joinNewsletter, setJoinNewsletter] = useState(true);
+  const [alertState, setAlertState] = useState<AlertState>("idle");
 
   const normalized = useMemo(() => normalizeSiteUrl(site), [site]);
 
@@ -110,6 +113,25 @@ export function ListFlow() {
     }
   };
 
+  const subscribeAlerts = async () => {
+    setAlertState("saving");
+    try {
+      const res = await fetch("/api/alerts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: alertEmail,
+          tweetUrl: tweetUrl.trim(),
+          newsletter: joinNewsletter,
+        }),
+      });
+      const j = await res.json();
+      setAlertState(res.ok && j.ok ? "done" : "error");
+    } catch {
+      setAlertState("error");
+    }
+  };
+
   if (phase === "done") {
     return (
       <div className="success-card">
@@ -120,18 +142,54 @@ export function ListFlow() {
           <br />
           now go make that tweet impossible to scroll past.
         </p>
+        <div className="alert-box">
+          {alertState === "done" ? (
+            <p className="alert-done">
+              ✓ you&apos;re set — we&apos;ll email you on big rank moves.
+            </p>
+          ) : (
+            <>
+              <label className="alert-label">
+                drop your email, get pinged on significant position changes
+              </label>
+              <div className="alert-row">
+                <input
+                  type="email"
+                  value={alertEmail}
+                  onChange={(e) => setAlertEmail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && alertEmail.trim()) subscribeAlerts();
+                  }}
+                  placeholder="you@yoursite.com"
+                />
+                <button
+                  className="btn btn-primary"
+                  disabled={alertState === "saving" || !alertEmail.trim()}
+                  onClick={subscribeAlerts}
+                >
+                  {alertState === "saving" ? "saving…" : "notify me"}
+                </button>
+              </div>
+              <label className="alert-check">
+                <input
+                  type="checkbox"
+                  checked={joinNewsletter}
+                  onChange={(e) => setJoinNewsletter(e.target.checked)}
+                />
+                also join Tibo&apos;s newsletter
+              </label>
+              {alertState === "error" && (
+                <div className="error-box">
+                  couldn&apos;t save that. try again?
+                </div>
+              )}
+            </>
+          )}
+        </div>
         <div className="hero-cta">
-          <a
-            className="btn btn-primary btn-big"
-            href={tweetUrl}
-            target="_blank"
-            rel="noopener"
-          >
-            open your tweet 💗
-          </a>
-          <Link className="btn btn-outline btn-big" href="/">
+          <a className="btn btn-primary btn-big" href="/">
             see the board
-          </Link>
+          </a>
         </div>
       </div>
     );

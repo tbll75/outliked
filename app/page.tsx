@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { after } from "next/server";
-import { boardAgeSeconds, getBoard, rebuildBoard, STALE_AFTER_SECONDS } from "@/lib/store";
+import { boardNeedsRefresh, getBoard, rebuildBoard } from "@/lib/store";
 import { formatLikes } from "@/lib/config";
 import type { Listing } from "@/lib/types";
 import { AutoRefresh, TimeAgo } from "./live";
@@ -76,7 +76,7 @@ function Row({ l, rank, aboveLikes }: { l: Listing; rank: number; aboveLikes?: n
 
 export default async function Home() {
   const board = await getBoard();
-  if (boardAgeSeconds(board) > STALE_AFTER_SECONDS && board.listings.length > 0) {
+  if (boardNeedsRefresh(board) && board.listings.length > 0) {
     after(async () => {
       try {
         await rebuildBoard();

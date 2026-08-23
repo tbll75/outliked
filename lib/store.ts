@@ -6,9 +6,40 @@ const LISTING_PREFIX = "listings/";
 const BOARD_KEY = "cache/board.json";
 
 /** Refresh no more often than this (seconds) no matter who asks. */
-const MIN_REFRESH_SECONDS = 90;
-/** A board older than this triggers a background refresh on page view. */
-export const STALE_AFTER_SECONDS = 180;
+const MIN_REFRESH_SECONDS = 45;
+
+/** How often a listing's like count should be re-fetched, by listing age.
+ *  Fresh listings move fast, old ones barely move — refresh accordingly. */
+const REFRESH_TIERS: { maxAgeSeconds: number; intervalSeconds: number }[] = [
+  { maxAgeSeconds: 15 * 60, intervalSeconds: 60 }, // first 15 min: every minute
+  { maxAgeSeconds: 2 * 60 * 60, intervalSeconds: 10 * 60 }, // to 2 h: every 10 min
+  { maxAgeSeconds: 24 * 60 * 60, intervalSeconds: 60 * 60 }, // to 24 h: hourly
+  { maxAgeSeconds: 7 * 24 * 60 * 60, intervalSeconds: 6 * 60 * 60 }, // to 7 d: every 6 h
+];
+/** Older than the last tier: once a day. */
+const MAX_REFRESH_INTERVAL_SECONDS = 24 * 60 * 60;
+
+export function refreshIntervalSeconds(ageSeconds: number): number {
+  for (const tier of REFRESH_TIERS) {
+    if (ageSeconds < tier.maxAgeSeconds) return tier.intervalSeconds;
+  }
+  return MAX_REFRESH_INTERVAL_SECONDS;
+}
+
+function listingIsDue(l: Listing, nowMs: number): boolean {
+  const last = l.lastRefreshedAt ?? l.createdAt;
+  const ageSeconds = (nowMs - new Date(l.createdAt).getTime()) / 1000;
+  const sinceRefreshSeconds = (nowMs - new Date(last).getTime()) / 1000;
+  return sinceRefreshSeconds >= refreshIntervalSeconds(ageSeconds);
+}
+
+/** True when at least one listing is due for a like-count refresh. */
+export function boardNeedsRefresh(board: Board | null): boolean {
+  if (!board) return true;
+  if (boardAgeSeconds(board) < MIN_REFRESH_SECONDS) return false;
+  const nowMs = Date.now();
+  return board.listings.some((l) => listingIsDue(l, nowMs));
+}
 
 function bust(url: string): string {
   return `${url}?v=${Date.now()}`;
@@ -87,21 +118,37 @@ export function boardAgeSeconds(board: Board | null): number {
   return (Date.now() - new Date(board.updatedAt).getTime()) / 1000;
 }
 
-/** Re-fetch every listing's like count and rewrite the cached board. */
+/** Re-fetch due listings' like counts and rewrite the cached board.
+ *  With `force`, every listing refreshes regardless of its schedule. */
 export async function rebuildBoard(force = false): Promise<Board> {
   const current = await readBoard();
-  if (!force && boardAgeSeconds(current) < MIN_REFRESH_SECONDS) {
-    return current as Board;
+  if (!force && current && !boardNeedsRefresh(current)) {
+    return current;
   }
   const listings = await getAllListings();
-  const fresh = await fetchTweetsBatch(
-    listings.map((l) => ({ id: l.id, tweetUrl: l.tweetUrl }))
-  );
+  const cachedById = new Map((current?.listings ?? []).map((l) => [l.id, l]));
   for (const l of listings) {
-    const t = fresh.get(l.id);
-    if (t) {
-      l.likes = t.likes;
-      if (t.authorAvatar) l.authorAvatar = t.authorAvatar;
+    const cached = cachedById.get(l.id);
+    if (cached) {
+      l.likes = cached.likes;
+      l.lastRefreshedAt = cached.lastRefreshedAt ?? l.lastRefreshedAt;
+      if (cached.authorAvatar) l.authorAvatar = cached.authorAvatar;
+    }
+  }
+  const nowMs = Date.now();
+  const due = force ? listings : listings.filter((l) => listingIsDue(l, nowMs));
+  if (due.length > 0) {
+    const fresh = await fetchTweetsBatch(
+      due.map((l) => ({ id: l.id, tweetUrl: l.tweetUrl }))
+    );
+    const nowIso = new Date().toISOString();
+    for (const l of due) {
+      const t = fresh.get(l.id);
+      if (t) {
+        l.likes = t.likes;
+        if (t.authorAvatar) l.authorAvatar = t.authorAvatar;
+      }
+      l.lastRefreshedAt = nowIso;
     }
   }
   const board: Board = {
@@ -110,6 +157,14 @@ export async function rebuildBoard(force = false): Promise<Board> {
     listings: sortBoard(listings),
   };
   await writeBoard(board);
+  if (current && due.length > 0) {
+    const { notifySignificantRankChanges } = await import("./alerts");
+    try {
+      await notifySignificantRankChanges(current, board);
+    } catch (e) {
+      console.error("rank alerts failed", e);
+    }
+  }
   return board;
 }
 

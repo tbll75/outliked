@@ -10,6 +10,7 @@ export type Listing = {
   authorAvatar: string;
   likes: number;
   createdAt: string; // ISO, when listed
+  lastRefreshedAt?: string; // ISO, when likes were last re-fetched
 };
 
 export type Board = {

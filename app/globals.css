@@ -845,6 +845,77 @@ footer .foot-row {
   margin-bottom: 26px;
 }
 
+.alert-box {
+  max-width: 460px;
+  margin: 0 auto 26px;
+  padding: 18px 18px 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  text-align: left;
+}
+
+.alert-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.alert-row {
+  display: flex;
+  gap: 10px;
+}
+
+.alert-row input {
+  flex: 1;
+  min-width: 0;
+  background: var(--card);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14.5px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.alert-row input:focus {
+  border-color: var(--pink);
+  box-shadow: 0 0 0 3px rgba(255, 46, 140, 0.15);
+}
+
+.alert-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.alert-check input {
+  accent-color: var(--pink);
+  width: 15px;
+  height: 15px;
+}
+
+.alert-done {
+  color: var(--text);
+  font-size: 14.5px;
+  margin: 0 !important;
+  text-align: center;
+}
+
+.alert-box .error-box {
+  margin-top: 12px;
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 720px) {
