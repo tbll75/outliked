@@ -12,9 +12,9 @@ const MIN_REFRESH_SECONDS = 60;
 /** How often a listing's like count should be re-fetched, by listing age.
  *  Fresh listings move fast, old ones barely move — refresh accordingly. */
 const REFRESH_TIERS: { maxAgeSeconds: number; intervalSeconds: number }[] = [
-  { maxAgeSeconds: 15 * 60, intervalSeconds: 60 }, // first 15 min: every minute
-  { maxAgeSeconds: 2 * 60 * 60, intervalSeconds: 10 * 60 }, // to 2 h: every 10 min
-  { maxAgeSeconds: 24 * 60 * 60, intervalSeconds: 60 * 60 }, // to 24 h: hourly
+  { maxAgeSeconds: 30 * 60, intervalSeconds: 60 }, // first 30 min: every minute
+  { maxAgeSeconds: 6 * 60 * 60, intervalSeconds: 5 * 60 }, // to 6 h: every 5 min
+  { maxAgeSeconds: 24 * 60 * 60, intervalSeconds: 30 * 60 }, // to 24 h: every 30 min
   { maxAgeSeconds: 7 * 24 * 60 * 60, intervalSeconds: 6 * 60 * 60 }, // to 7 d: every 6 h
 ];
 /** Older than the last tier: once a day. */

@@ -3,7 +3,7 @@ import { addListing, ListingConflictError } from "@/lib/store";
 import { expandTcoLinks, fetchTweet, parseTweetUrl } from "@/lib/tweets";
 import { APP_DOMAIN, APP_NAME, normalizeSiteUrl } from "@/lib/config";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
-import { fetchSitePitch } from "@/lib/site-meta";
+import { checkFavicon, fetchSitePitch } from "@/lib/site-meta";
 import type { Listing } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -62,7 +62,10 @@ export async function POST(req: Request) {
       `That tweet doesn't mention ${domain}. The announcement has to name the site it's listing.`
     );
 
-  const pitch = await fetchSitePitch(site);
+  const [pitch, hasFavicon] = await Promise.all([
+    fetchSitePitch(site),
+    checkFavicon(domain),
+  ]);
 
   const listing: Listing = {
     id: data.id,
@@ -76,6 +79,7 @@ export async function POST(req: Request) {
     authorAvatar: data.authorAvatar,
     likes: data.likes,
     createdAt: new Date().toISOString(),
+    hasFavicon,
   };
 
   try {

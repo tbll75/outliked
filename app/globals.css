@@ -482,6 +482,16 @@ button {
   object-fit: contain;
 }
 
+.favicon-letter {
+  font-size: 20px;
+  font-weight: 700;
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  line-height: 1;
+}
+
 .row-main {
   min-width: 0;
 }

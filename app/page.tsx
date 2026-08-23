@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { boardNeedsRefresh, getBoard, rebuildBoard } from "@/lib/store";
 import { formatLikes } from "@/lib/config";
 import type { Listing } from "@/lib/types";
+import { Favicon } from "./Favicon";
 import { AutoRefresh, TimeAgo } from "./live";
 import { ClaimBar } from "./ClaimBar";
 
@@ -15,12 +16,7 @@ function Row({ l, rank, aboveLikes }: { l: Listing; rank: number; aboveLikes?: n
     <div className={`row ${medal}`}>
       <div className="rank">{rank === 1 ? "👑" : `#${rank}`}</div>
       <div className="favicon">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={`https://www.google.com/s2/favicons?domain=${l.domain}&sz=64`}
-          alt=""
-          loading="lazy"
-        />
+        <Favicon domain={l.domain} hasFavicon={l.hasFavicon} />
       </div>
       <div className="row-main">
         <div className="row-name">
