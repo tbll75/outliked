@@ -101,7 +101,15 @@ export async function addSubscriber(
   return sub;
 }
 
-export function welcomeEmailText(domain: string | null, unsubscribeUrl: string): string {
+const TIBO_PROJECTS = [
+  "outrank.so",
+  "revid.ai",
+  "superx.so",
+  "postsyncer.com",
+  "bazzly.com",
+];
+
+export function welcomeEmailBody(domain: string | null): string {
   const opener = domain
     ? `${domain} is live on the ${APP_NAME} board. nice.`
     : `your site is live on the ${APP_NAME} board. nice.`;
@@ -112,11 +120,9 @@ export function welcomeEmailText(domain: string | null, unsubscribeUrl: string):
     ``,
     `more likes on your tweet means a higher rank, so keep sharing it. we'll email you when your rank makes a big move, nothing else.`,
     ``,
-    `btw, I share everything I learn building products at https://tmaker.io. free playbooks and tools over there if you're into that.`,
+    `btw, I build a bunch of other stuff you might like: ${TIBO_PROJECTS.join(", ")}. and I share everything I learn along the way at tmaker.io.`,
     ``,
     `good luck on the board 💗`,
-    ``,
-    `unsubscribe: ${unsubscribeUrl}`,
   ].join("\n");
 }
 
@@ -129,8 +135,9 @@ export async function sendWelcomeEmail(
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return;
   const unsubscribeUrl = `${APP_URL}/api/alerts/unsubscribe?listing=${listingId}&token=${sub.token}`;
+  const body = welcomeEmailBody(domain);
   try {
-    await fetch(RESEND_ENDPOINT, {
+    const res = await fetch(RESEND_ENDPOINT, {
       method: "POST",
       headers: {
         authorization: `Bearer ${apiKey}`,
@@ -140,11 +147,15 @@ export async function sendWelcomeEmail(
         from: process.env.ALERTS_FROM_EMAIL ?? DEFAULT_FROM,
         to: [sub.email],
         subject: `you're on ${APP_NAME}`,
-        text: welcomeEmailText(domain, unsubscribeUrl),
+        text: `${body}\n\nunsubscribe: ${unsubscribeUrl}`,
+        html: emailHtml(body, unsubscribeUrl),
         headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` },
       }),
       cache: "no-store",
     });
+    if (!res.ok) {
+      console.error("welcome email failed", res.status, await res.text());
+    }
   } catch (e) {
     console.error("welcome email failed", e);
   }
@@ -186,6 +197,49 @@ export async function getAllSubscriberLists(): Promise<SubscriberList[]> {
   return out;
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Wrap full URLs and bare domains (tmaker.io, outrank.so, …) in links. */
+function linkify(escaped: string): string {
+  return escaped.replace(
+    /(https?:\/\/[^\s<]*[^\s<.,)]|\b[a-z0-9-]+\.[a-z]{2,}\b(?:\/[^\s<]*[^\s<.,)])?)/g,
+    (m) => {
+      const href = /^https?:\/\//.test(m) ? m : `https://${m}`;
+      return `<a href="${href}" style="color:inherit;">${m}</a>`;
+    }
+  );
+}
+
+/** Plain-text body -> minimal HTML email, with a small gray unsubscribe
+ *  footer (the text version carries a plain "unsubscribe:" line instead). */
+function emailHtml(
+  body: string,
+  unsubscribeUrl: string,
+  footerNote?: string
+): string {
+  const paragraphs = body
+    .split("\n\n")
+    .map(
+      (p) =>
+        `<p style="margin:0 0 16px;">${linkify(escapeHtml(p)).replace(/\n/g, "<br>")}</p>`
+    )
+    .join("");
+  const note = footerNote ? `${escapeHtml(footerNote)}<br>` : "";
+  return (
+    `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#111;">` +
+    paragraphs +
+    `<p style="margin:24px 0 0;font-size:12px;line-height:1.5;color:#999;">${note}` +
+    `<a href="${unsubscribeUrl}" style="color:#999;">unsubscribe</a></p>` +
+    `</div>`
+  );
+}
+
 /** Human line for a rank move, or null when the move isn't worth an email. */
 function describeChange(prev: number, next: number): string | null {
   if (prev === next) return null;
@@ -211,18 +265,16 @@ async function sendAlertEmail(
 ): Promise<boolean> {
   const unsubscribeUrl = `${APP_URL}/api/alerts/unsubscribe?listing=${listing.id}&token=${sub.token}`;
   const subject = `${APP_NAME}: ${listing.name} — ${change.replace(/ 👑$/, "")}`;
-  const text = [
+  const note = `you only get these on significant rank moves.`;
+  const body = [
     `${change}`,
     ``,
     `${listing.name} is #${rank} on ${APP_NAME} with ${formatLikes(listing.likes)} likes.`,
     ``,
     `rally more likes on your tweet: ${listing.tweetUrl}`,
     `see the board: ${APP_URL}`,
-    ``,
-    `—`,
-    `you only get these on significant rank moves.`,
-    `unsubscribe: ${unsubscribeUrl}`,
   ].join("\n");
+  const text = `${body}\n\n${note}\nunsubscribe: ${unsubscribeUrl}`;
   try {
     const res = await fetch(RESEND_ENDPOINT, {
       method: "POST",
@@ -235,6 +287,7 @@ async function sendAlertEmail(
         to: [sub.email],
         subject,
         text,
+        html: emailHtml(body, unsubscribeUrl, note),
         headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` },
       }),
       cache: "no-store",
