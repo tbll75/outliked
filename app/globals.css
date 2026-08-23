@@ -1272,6 +1272,14 @@ footer .foot-row {
   flex: none;
 }
 
+.admin-row-head .clicks-num {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  flex: none;
+}
+
 .admin-row-main {
   flex: 1;
   min-width: 0;

@@ -17,6 +17,7 @@ export type AdminRow = Listing & {
   cheat: boolean; // auto anti-cheat flag: pulled off the board
   legit: boolean; // admin exempted this listing from the anti-cheat
   subscriberCount: number;
+  clicks: number; // site visits from the board
 };
 
 type Props = {
@@ -220,6 +221,9 @@ export function AdminClient({
                   <div className="likes-num">
                     <span className="heart">♥</span>
                     {formatLikes(r.likes)}
+                  </div>
+                  <div className="clicks-num" title="site visits from the board">
+                    👆 {formatLikes(r.clicks)}
                   </div>
                 </div>
                 <div className="admin-row-detail">

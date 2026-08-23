@@ -2,6 +2,7 @@ import { timingSafeEqual } from "crypto";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getAllListings, readBoard } from "@/lib/store";
+import { readClicks } from "@/lib/clicks";
 import {
   EMPTY_MODERATION,
   isBanned,
@@ -33,11 +34,12 @@ export default async function AdminPage({
   const { key } = await searchParams;
   if (!keyMatches(key, process.env.ADMIN_KEY)) notFound();
 
-  const [listings, board, moderation, subscriberLists] = await Promise.all([
+  const [listings, board, moderation, subscriberLists, clicks] = await Promise.all([
     getAllListings().catch(() => []),
     readBoard(),
     readModeration().catch(() => EMPTY_MODERATION),
     getAllSubscriberLists().catch(() => []),
+    readClicks(),
   ]);
 
   // The cached board carries the live like counts and the public ranking;
@@ -64,6 +66,7 @@ export default async function AdminPage({
         cheat: isCheatSuspect({ likes, replies }) && !legit.has(l.id),
         legit: legit.has(l.id),
         subscriberCount: subsByListing.get(l.id) ?? 0,
+        clicks: clicks[l.id] ?? 0,
       };
     })
     .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || b.likes - a.likes);
