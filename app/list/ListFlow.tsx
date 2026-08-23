@@ -60,6 +60,25 @@ export function ListFlow() {
 
   const normalized = useMemo(() => normalizeSiteUrl(site), [site]);
 
+  /** Show the static template instantly, then swap in a fresh AI-written
+   *  variant (unique per lister reads better and X's algo dislikes
+   *  copy-pasted text) — unless the user already started editing. */
+  const upgradeTweet = (siteUrl: string, staticTweet: string) => {
+    fetch("/api/tweet-copy", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ site: siteUrl }),
+    })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.ok || typeof j.tweet !== "string") return;
+        setTweetText((current) =>
+          current === staticTweet ? j.tweet : current
+        );
+      })
+      .catch(() => {});
+  };
+
   // Arriving from the homepage claim bar: ?site=… prefills and skips ahead.
   useEffect(() => {
     const param = new URLSearchParams(window.location.search).get("site");
@@ -67,15 +86,19 @@ export function ListFlow() {
     const n = normalizeSiteUrl(param);
     if (!n) return;
     setSite(param);
-    setTweetText(buildAnnouncementTweet(n.domain));
+    const staticTweet = buildAnnouncementTweet(n.domain);
+    setTweetText(staticTweet);
     setPhase("tweet");
+    upgradeTweet(n.site, staticTweet);
   }, []);
 
   const startTweetStep = () => {
     if (!normalized) return;
-    setTweetText(buildAnnouncementTweet(normalized.domain));
+    const staticTweet = buildAnnouncementTweet(normalized.domain);
+    setTweetText(staticTweet);
     setPhase("tweet");
     setError("");
+    upgradeTweet(normalized.site, staticTweet);
   };
 
   const openIntent = () => {
