@@ -477,7 +477,20 @@ a.rank:hover {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px 20px;
+  cursor: pointer;
   transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.podium-divider {
+  height: 1px;
+  margin: 8px 32px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--border-strong),
+    transparent
+  );
+  opacity: 0.6;
 }
 
 .row:hover {
@@ -1012,6 +1025,145 @@ footer .foot-row {
 }
 
 /* ---------- responsive ---------- */
+
+@media (max-width: 640px) {
+  .league-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin: 0 -20px 16px;
+    padding: 0 20px 4px;
+  }
+
+  .league-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .league-tab {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .rows {
+    gap: 8px;
+  }
+
+  .row {
+    grid-template-columns: 30px 38px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rank favicon main likes"
+      "rank favicon author likes";
+    column-gap: 10px;
+    row-gap: 3px;
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .row .rank {
+    grid-area: rank;
+    font-size: 17px;
+  }
+
+  .r1 .rank {
+    font-size: 21px;
+  }
+
+  .favicon {
+    grid-area: favicon;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+  }
+
+  .favicon img {
+    width: 24px;
+    height: 24px;
+  }
+
+  .row-main {
+    grid-area: main;
+  }
+
+  .row-name {
+    font-size: 15px;
+    gap: 6px;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  .row-name a {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .row-domain {
+    display: none;
+  }
+
+  .row-pitch {
+    display: none;
+  }
+
+  .row-author {
+    grid-area: author;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  .row-author img {
+    width: 18px;
+    height: 18px;
+  }
+
+  .row-likes {
+    grid-area: likes;
+    gap: 0;
+    padding-left: 4px;
+  }
+
+  .likes-num {
+    font-size: 18px;
+  }
+
+  /* boosting happens from the tweet; the pill just cramps small screens */
+  .boost {
+    display: none;
+  }
+
+  .how-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .how-card {
+    padding: 20px 18px;
+  }
+
+  .stats {
+    gap: 8px;
+    margin: 30px 0 8px;
+  }
+
+  .stat {
+    padding: 14px 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .nav .ghost-link {
+    display: none;
+  }
+
+  .nav .btn {
+    font-size: 14px;
+    padding: 10px 16px;
+  }
+}
 
 /* ---------- admin ---------- */
 
