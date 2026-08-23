@@ -135,7 +135,9 @@ function overlayCachedLikes(listings: Listing[], cached: Board | null): void {
     const c = cachedById.get(l.id);
     if (c) {
       l.likes = Math.max(l.likes, c.likes);
-      l.lastRefreshedAt = c.lastRefreshedAt ?? l.lastRefreshedAt;
+      const own = l.lastRefreshedAt ? new Date(l.lastRefreshedAt).getTime() : 0;
+      const cached = c.lastRefreshedAt ? new Date(c.lastRefreshedAt).getTime() : 0;
+      if (cached > own) l.lastRefreshedAt = c.lastRefreshedAt;
       if (c.authorAvatar) l.authorAvatar = c.authorAvatar;
     }
   }
@@ -204,9 +206,12 @@ export async function getBoard(): Promise<Board> {
   }
 }
 
-/** Add a listing (or replace the existing listing for the same domain),
- *  then rewrite the board immediately so the submitter sees their rank. */
-export async function addListing(l: Listing): Promise<Board> {
+/** Add a listing (or replace the existing listing for the same domain) and
+ *  return the rank the submitter would hold. Deliberately does NOT rewrite the
+ *  cached board: blob reads can be up to ~60s stale, and a submit-time board
+ *  write built on a stale cache reverts fresh like counts. The next rebuild
+ *  folds the new listing in from the durable blobs. */
+export async function addListing(l: Listing): Promise<number> {
   const current = await readBoard();
   const listings = await getAllListings();
   overlayCachedLikes(listings, current);
@@ -230,13 +235,7 @@ export async function addListing(l: Listing): Promise<Board> {
   if (sameDomain) await deleteListing(sameDomain.id);
   const next = listings.filter((x) => x.id !== l.id && x.domain !== l.domain);
   next.push(l);
-  const board: Board = {
-    updatedAt: new Date().toISOString(),
-    totalLikes: next.reduce((s, x) => s + x.likes, 0),
-    listings: sortBoard(next),
-  };
-  await writeBoard(board);
-  return board;
+  return sortBoard(next).findIndex((x) => x.id === l.id) + 1;
 }
 
 export class ListingConflictError extends Error {}

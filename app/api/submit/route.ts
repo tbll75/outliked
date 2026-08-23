@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { addListing, ListingConflictError } from "@/lib/store";
+import { after } from "next/server";
+import { addListing, ListingConflictError, rebuildBoard } from "@/lib/store";
 import { expandTcoLinks, fetchTweet, parseTweetUrl } from "@/lib/tweets";
 import { APP_DOMAIN, APP_NAME, normalizeSiteUrl } from "@/lib/config";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
@@ -83,8 +84,14 @@ export async function POST(req: Request) {
   };
 
   try {
-    const board = await addListing(listing);
-    const rank = board.listings.findIndex((l) => l.id === listing.id) + 1;
+    const rank = await addListing(listing);
+    after(async () => {
+      try {
+        await rebuildBoard();
+      } catch (e) {
+        console.error("post-submit rebuild failed", e);
+      }
+    });
     return NextResponse.json({ ok: true, rank, likes: listing.likes });
   } catch (e) {
     if (e instanceof ListingConflictError) return err(409, e.message);
