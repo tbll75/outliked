@@ -110,9 +110,6 @@ export default async function Home() {
 
       <main className="wrap">
         <section className="hero">
-          <div className="hero-badge">
-            <span className="live-dot" /> season 1 · zero dollars · pure clout
-          </div>
           <h1>
             get <span className="grad">outliked</span>
             <br />
