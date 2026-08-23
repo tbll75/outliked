@@ -33,10 +33,13 @@ function listingIsDue(l: Listing, nowMs: number): boolean {
   return sinceRefreshSeconds >= refreshIntervalSeconds(ageSeconds);
 }
 
-/** True when at least one listing is due for a like-count refresh. */
+/** True when at least one listing is due for a like-count refresh.
+ *  An empty board also qualifies: it may be the result of a failed rebuild,
+ *  and re-checking the store is the only way to recover. */
 export function boardNeedsRefresh(board: Board | null): boolean {
   if (!board) return true;
   if (boardAgeSeconds(board) < MIN_REFRESH_SECONDS) return false;
+  if (board.listings.length === 0) return true;
   const nowMs = Date.now();
   return board.listings.some((l) => listingIsDue(l, nowMs));
 }
@@ -59,12 +62,17 @@ export async function deleteListing(id: string): Promise<void> {
   await Promise.all(blobs.map((b) => del(b.url)));
 }
 
+/** Read every listing blob. Throws when any blob can't be read: a partial
+ *  result must never flow into rebuildBoard, or a transient fetch failure
+ *  silently erases listings from the board (this happened once). */
 export async function getAllListings(): Promise<Listing[]> {
   const out: Listing[] = [];
+  let expected = 0;
   let cursor: string | undefined;
   do {
     const page = await list({ prefix: LISTING_PREFIX, cursor, limit: 1000 });
     cursor = page.cursor;
+    expected += page.blobs.length;
     const fetched = await Promise.all(
       page.blobs.map(async (b) => {
         try {
@@ -78,6 +86,11 @@ export async function getAllListings(): Promise<Listing[]> {
     );
     for (const l of fetched) if (l?.id) out.push(l);
   } while (cursor);
+  if (out.length < expected) {
+    throw new Error(
+      `getAllListings read ${out.length}/${expected} listing blobs; refusing partial result`
+    );
+  }
   // De-dupe by tweet id in case of any historical double-write
   const seen = new Map<string, Listing>();
   for (const l of out) seen.set(l.id, l);
@@ -150,6 +163,9 @@ export async function rebuildBoard(force = false): Promise<Board> {
       }
       l.lastRefreshedAt = nowIso;
     }
+  }
+  if (current && current.listings.length > 0 && listings.length === 0) {
+    return current;
   }
   const board: Board = {
     updatedAt: new Date().toISOString(),
