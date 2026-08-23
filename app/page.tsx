@@ -4,6 +4,7 @@ import { boardAgeSeconds, getBoard, rebuildBoard, STALE_AFTER_SECONDS } from "@/
 import { formatLikes } from "@/lib/config";
 import type { Listing } from "@/lib/types";
 import { AutoRefresh, TimeAgo } from "./live";
+import { ClaimBar } from "./ClaimBar";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ function Row({ l, rank, aboveLikes }: { l: Listing; rank: number; aboveLikes?: n
           <a href={l.site} target="_blank" rel="noopener">
             {l.name}
           </a>
-          <span className="row-domain">{l.domain}</span>
+          {l.name !== l.domain && <span className="row-domain">{l.domain}</span>}
         </div>
         {l.pitch && <div className="row-pitch">{l.pitch}</div>}
       </div>
@@ -122,14 +123,7 @@ export default async function Home() {
             free. You just have to tweet it. The most-liked announcement tweet
             holds <b>#1</b>. Until someone outlikes it.
           </p>
-          <div className="hero-cta">
-            <Link href="/list" className="btn btn-primary btn-big">
-              claim your spot 💗
-            </Link>
-            <a href="#board" className="btn btn-outline btn-big">
-              see the board
-            </a>
-          </div>
+          <ClaimBar />
           <p className="hero-note">
             no signup · no payment · one tweet and you&apos;re live
           </p>
@@ -180,9 +174,7 @@ export default async function Home() {
                 <br />
                 this is the cheapest #1 will ever be.
               </p>
-              <Link href="/list" className="btn btn-primary btn-big">
-                be first, it&apos;s free
-              </Link>
+              <ClaimBar />
             </div>
           ) : (
             <div className="rows">
@@ -205,8 +197,8 @@ export default async function Home() {
               <div className="step">STEP 1</div>
               <h3>Drop your link 🔗</h3>
               <p>
-                Your site, your project, your thing. Name it, pitch it in one
-                line. Takes 30 seconds, costs nothing.
+                Just your URL. We pull the name and pitch from your site
+                automatically. Takes 10 seconds, costs nothing.
               </p>
             </div>
             <div className="how-card">

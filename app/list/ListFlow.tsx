@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { buildAnnouncementTweet, normalizeSiteUrl } from "@/lib/config";
 
 type Phase = "form" | "tweet" | "verify" | "done";
@@ -48,8 +48,6 @@ function fireConfetti() {
 export function ListFlow() {
   const [phase, setPhase] = useState<Phase>("form");
   const [site, setSite] = useState("");
-  const [name, setName] = useState("");
-  const [pitch, setPitch] = useState("");
   const [tweetText, setTweetText] = useState("");
   const [tweetUrl, setTweetUrl] = useState("");
   const [error, setError] = useState("");
@@ -57,11 +55,21 @@ export function ListFlow() {
   const [rank, setRank] = useState(0);
 
   const normalized = useMemo(() => normalizeSiteUrl(site), [site]);
-  const formOk = Boolean(normalized && name.trim().length > 0);
+
+  // Arriving from the homepage claim bar: ?site=… prefills and skips ahead.
+  useEffect(() => {
+    const param = new URLSearchParams(window.location.search).get("site");
+    if (!param) return;
+    const n = normalizeSiteUrl(param);
+    if (!n) return;
+    setSite(param);
+    setTweetText(buildAnnouncementTweet(n.domain));
+    setPhase("tweet");
+  }, []);
 
   const startTweetStep = () => {
     if (!normalized) return;
-    setTweetText(buildAnnouncementTweet(name.trim(), normalized.site));
+    setTweetText(buildAnnouncementTweet(normalized.domain));
     setPhase("tweet");
     setError("");
   };
@@ -84,8 +92,6 @@ export function ListFlow() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           site: normalized?.site,
-          name: name.trim(),
-          pitch: pitch.trim(),
           tweetUrl: tweetUrl.trim(),
         }),
       });
@@ -150,32 +156,20 @@ export function ListFlow() {
           <input
             value={site}
             onChange={(e) => setSite(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && normalized) startTweetStep();
+            }}
             placeholder="yoursite.com"
             autoFocus
           />
-        </div>
-        <div className="field">
-          <label>name</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="My Cool Thing"
-            maxLength={40}
-          />
-        </div>
-        <div className="field">
-          <label>one-line pitch (optional)</label>
-          <input
-            value={pitch}
-            onChange={(e) => setPitch(e.target.value)}
-            placeholder="the fastest way to do the thing"
-            maxLength={90}
-          />
+          <p className="hint">
+            that&apos;s it. name and pitch come from your site automatically.
+          </p>
         </div>
         {phase === "form" && (
           <button
             className="btn btn-primary"
-            disabled={!formOk}
+            disabled={!normalized}
             onClick={startTweetStep}
           >
             next → write the tweet
@@ -197,8 +191,8 @@ export function ListFlow() {
                 onChange={(e) => setTweetText(e.target.value)}
               />
               <p className="hint">
-                must mention {normalized?.domain ?? "your site"} or outliked.
-                that&apos;s how we verify it&apos;s real.
+                just keep &quot;outliked&quot; in it. that&apos;s how we verify
+                it&apos;s real.
               </p>
             </div>
             <button className="btn btn-primary" onClick={openIntent}>

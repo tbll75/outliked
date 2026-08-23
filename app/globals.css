@@ -250,6 +250,46 @@ button {
   color: var(--muted);
 }
 
+/* ---------- claim bar ---------- */
+
+.claim-bar {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  max-width: 560px;
+  margin: 30px auto 0;
+}
+
+.claim-bar input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 15px 18px;
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.claim-bar input:focus {
+  border-color: var(--pink);
+  box-shadow: 0 0 0 3px rgba(255, 46, 140, 0.15);
+}
+
+.claim-bar .btn {
+  border-radius: 14px;
+  padding: 15px 24px;
+}
+
+@media (max-width: 560px) {
+  .claim-bar {
+    flex-direction: column;
+  }
+}
+
 /* ---------- stats ---------- */
 
 .stats {

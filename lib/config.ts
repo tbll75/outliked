@@ -29,14 +29,13 @@ export function formatLikes(n: number): string {
   return String(n);
 }
 
-export function buildAnnouncementTweet(name: string, site: string): string {
+export function buildAnnouncementTweet(domain: string): string {
   return [
-    `i just listed ${name} on ${APP_NAME}, the leaderboard where likes are the only currency.`,
+    `i just listed ${domain} on ${APP_NAME}, the leaderboard where likes are the only currency.`,
     ``,
     `every like on this tweet pushes it closer to #1.`,
     `do your thing 💗`,
     ``,
-    `${site}`,
     `${APP_URL}`,
   ].join("\n");
 }

@@ -4,7 +4,7 @@
 
 [outbid.lol](https://outbid.lol) made people pay to hold #1. outliked makes them earn it:
 
-1. **List your site, free.** Name + link + one-line pitch.
+1. **Drop your URL, free.** Nothing else. Name and pitch are pulled from your site automatically.
 2. **Post the announcement tweet.** We pre-write it; the tweet *is* your listing. No tweet, no listing.
 3. **Likes decide the rank.** The most-liked announcement tweet holds 👑 #1 until someone outlikes it.
 
@@ -18,7 +18,7 @@ No signup, no payment, no bids. The viral loop is the product: every listing is 
   - [Apify `apidojo/tweet-scraper`](https://apify.com/apidojo/tweet-scraper) (batch, robust) when `APIFY_TOKEN` is set: one actor run refreshes every listing (~$0.0004/tweet)
   - Twitter syndication CDN as a free zero-auth fallback
 - **Refresh strategy**: board rebuilds in the background (`after()`) when a visitor loads a stale board (>3 min), plus a daily Vercel cron; hard-throttled to once per 90s
-- **Tweet verification**: the announcement tweet must mention the listed domain (checked against tweet text, expanded URL entities, and resolved t.co redirects) or mention outliked
+- **Tweet verification**: the announcement tweet just has to mention outliked (checked against tweet text, expanded URL entities, and resolved t.co redirects)
 - **Anti-spam**: one listing per domain; a new tweet can only take over a domain once it out-likes the current one
 - **Dynamic OG image** — live top 3 rendered into the share card (`next/og`)
 

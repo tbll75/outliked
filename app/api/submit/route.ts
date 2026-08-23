@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { addListing, ListingConflictError } from "@/lib/store";
 import { expandTcoLinks, fetchTweet, parseTweetUrl } from "@/lib/tweets";
 import { APP_NAME, normalizeSiteUrl } from "@/lib/config";
+import { fetchSitePitch } from "@/lib/site-meta";
 import type { Listing } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -10,16 +11,12 @@ const err = (status: number, message: string) =>
   NextResponse.json({ ok: false, error: message }, { status });
 
 export async function POST(req: Request) {
-  let body: { site?: string; name?: string; pitch?: string; tweetUrl?: string };
+  let body: { site?: string; tweetUrl?: string };
   try {
     body = await req.json();
   } catch {
     return err(400, "Invalid JSON body.");
   }
-
-  const name = (body.name ?? "").trim().slice(0, 40);
-  const pitch = (body.pitch ?? "").trim().slice(0, 90);
-  if (!name) return err(400, "Give your site a name.");
 
   const normalized = normalizeSiteUrl(body.site ?? "");
   if (!normalized) return err(400, "That site URL doesn't look right.");
@@ -39,25 +36,26 @@ export async function POST(req: Request) {
       "Couldn't read that tweet. Is it public? Give it a few seconds and try again."
     );
 
-  // The announcement must reference the listed site (or at least name-drop us).
+  // The announcement just has to mention outliked.
   const haystack = [data.text, ...data.urls].join(" ").toLowerCase();
-  let verified =
-    haystack.includes(domain.toLowerCase()) || haystack.includes(APP_NAME);
+  let verified = haystack.includes(APP_NAME);
   if (!verified && /https:\/\/t\.co\//.test(data.text)) {
     const expanded = await expandTcoLinks(data.text);
-    verified = expanded.some((u) => u.toLowerCase().includes(domain));
+    verified = expanded.some((u) => u.toLowerCase().includes(APP_NAME));
   }
   if (!verified)
     return err(
       422,
-      `That tweet doesn't mention ${domain} (or ${APP_NAME}). Post the announcement tweet first, then paste its link.`
+      `That tweet doesn't mention ${APP_NAME}. Check you pasted the link to your announcement tweet, not another one.`
     );
+
+  const pitch = await fetchSitePitch(site);
 
   const listing: Listing = {
     id: data.id,
     site,
     domain,
-    name,
+    name: domain,
     pitch,
     tweetUrl: `https://x.com/${data.authorHandle || tweet.handle}/status/${data.id}`,
     authorHandle: data.authorHandle || tweet.handle,
