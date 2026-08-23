@@ -10,6 +10,7 @@ import {
 import { APP_DOMAIN, APP_NAME, normalizeSiteUrl } from "@/lib/config";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
 import { checkFavicon, fetchSitePitch } from "@/lib/site-meta";
+import { EMPTY_MODERATION, isBanned, readModeration } from "@/lib/moderation";
 import type { Listing } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -41,12 +42,25 @@ export async function POST(req: Request) {
       "Paste the full link to your announcement tweet (x.com/you/status/…)."
     );
 
+  // Fail open on a transient moderation read: blocking every submit over a
+  // flaky blob fetch is worse than letting a rare banned resubmit through
+  // (the board rebuild filters banned listings anyway).
+  const moderation = await readModeration().catch(() => EMPTY_MODERATION);
+  if (isBanned(moderation, domain, tweet.handle)) {
+    return err(403, "This site or account can't be listed.");
+  }
+
   const data = await fetchTweet(tweet.id);
   if (!data)
     return err(
       422,
       "Couldn't read that tweet. Is it public? Give it a few seconds and try again."
     );
+
+  // Re-check with the resolved author: the handle in the pasted URL can lie.
+  if (isBanned(moderation, domain, data.authorHandle || tweet.handle)) {
+    return err(403, "This site or account can't be listed.");
+  }
 
   // The announcement has to mention outliked (name or domain) AND the listed site.
   const mentionsApp = (s: string) =>
@@ -87,6 +101,7 @@ export async function POST(req: Request) {
     authorName: data.authorName || tweet.handle,
     authorAvatar: data.authorAvatar,
     likes: data.likes,
+    replies: data.replies,
     createdAt: new Date().toISOString(),
     hasFavicon,
     authorFollowers: followers,

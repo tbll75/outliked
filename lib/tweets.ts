@@ -50,6 +50,10 @@ export async function fetchTweetSyndication(
       text: j.text ?? "",
       urls,
       likes: j.favorite_count,
+      replies:
+        typeof j.conversation_count === "number"
+          ? j.conversation_count
+          : undefined,
       authorHandle: j.user?.screen_name ?? "",
       authorName: j.user?.name ?? "",
       authorAvatar: j.user?.profile_image_url_https ?? "",
@@ -70,6 +74,7 @@ type ApifyTweet = {
   fullText?: string;
   text?: string;
   likeCount?: number;
+  replyCount?: number;
   entities?: { urls?: { expanded_url?: string }[] };
   author?: {
     userName?: string;
@@ -110,6 +115,7 @@ export async function fetchTweetsApify(
           .map((u) => u.expanded_url)
           .filter((u): u is string => Boolean(u)),
         likes: t.likeCount,
+        replies: typeof t.replyCount === "number" ? t.replyCount : undefined,
         authorHandle: t.author?.userName ?? "",
         authorName: t.author?.name ?? "",
         authorAvatar: t.author?.profilePicture ?? "",

@@ -1,6 +1,12 @@
 import { del, list, put } from "@vercel/blob";
 import type { Board, Listing } from "./types";
 import { fetchTweetsBatch } from "./tweets";
+import {
+  isBanned,
+  isCheatSuspect,
+  readModeration,
+  type Moderation,
+} from "./moderation";
 
 const LISTING_PREFIX = "listings/";
 const BOARD_KEY = "cache/board.json";
@@ -148,6 +154,9 @@ function overlayCachedLikes(listings: Listing[], cached: Board | null): void {
       l.likes = Math.max(l.likes, c.likes);
       const own = l.lastRefreshedAt ? new Date(l.lastRefreshedAt).getTime() : 0;
       const cached = c.lastRefreshedAt ? new Date(c.lastRefreshedAt).getTime() : 0;
+      if (typeof c.replies === "number" && (cached > own || l.replies === undefined)) {
+        l.replies = c.replies;
+      }
       if (cached > own) l.lastRefreshedAt = c.lastRefreshedAt;
       if (c.authorAvatar) l.authorAvatar = c.authorAvatar;
       if (l.authorFollowers === undefined) l.authorFollowers = c.authorFollowers;
@@ -170,14 +179,45 @@ export function boardAgeSeconds(board: Board | null): number {
   return (Date.now() - new Date(board.updatedAt).getTime()) / 1000;
 }
 
+/** Fast path for admin actions: drop moderated (or deleted) listings from the
+ *  cached board without re-fetching any like counts, so the action's HTTP
+ *  response doesn't wait on a full rebuild. The cached read can be up to ~60s
+ *  stale, so the caller must still schedule a forced rebuild to follow. */
+export async function applyModerationToBoard(
+  mod: Moderation,
+  dropIds: string[] = []
+): Promise<void> {
+  const current = await readBoard();
+  if (!current) return;
+  const hiddenIds = new Set([...mod.hidden, ...dropIds]);
+  const listings = current.listings.filter(
+    (l) => !hiddenIds.has(l.id) && !isBanned(mod, l.domain, l.authorHandle)
+  );
+  if (listings.length === current.listings.length) return;
+  await writeBoard({
+    updatedAt: current.updatedAt, // likes weren't refreshed; keep the age honest
+    totalLikes: listings.reduce((s, l) => s + l.likes, 0),
+    listings,
+  });
+}
+
 /** Re-fetch due listings' like counts and rewrite the cached board.
- *  With `force`, every listing refreshes regardless of its schedule. */
-export async function rebuildBoard(force = false): Promise<Board> {
+ *  With `force`, every listing refreshes regardless of its schedule.
+ *  Admin actions pass the moderation state they just wrote so the rebuild
+ *  can't act on a stale blob read. */
+export async function rebuildBoard(
+  force = false,
+  moderation?: Moderation
+): Promise<Board> {
   const current = await readBoard();
   if (!force && current && !boardNeedsRefresh(current)) {
     return current;
   }
-  const listings = dedupeByDomain(await getAllListings());
+  const mod = moderation ?? (await readModeration());
+  const hiddenIds = new Set(mod.hidden);
+  const listings = dedupeByDomain(await getAllListings()).filter(
+    (l) => !hiddenIds.has(l.id) && !isBanned(mod, l.domain, l.authorHandle)
+  );
   overlayCachedLikes(listings, current);
   const nowMs = Date.now();
   const due = force ? listings : listings.filter((l) => listingIsDue(l, nowMs));
@@ -190,6 +230,7 @@ export async function rebuildBoard(force = false): Promise<Board> {
       const t = fresh.get(l.id);
       if (t) {
         l.likes = t.likes;
+        if (typeof t.replies === "number") l.replies = t.replies;
         if (t.authorAvatar) l.authorAvatar = t.authorAvatar;
         if (t.authorFollowers !== undefined) l.authorFollowers = t.authorFollowers;
       }
@@ -199,10 +240,25 @@ export async function rebuildBoard(force = false): Promise<Board> {
   if (!force && current && current.listings.length > 0 && listings.length === 0) {
     return current;
   }
+  // Anti-cheat: big like counts with a dead reply section get pulled off the
+  // public board automatically, unless the admin marked the listing legit.
+  const legitIds = new Set(mod.legit);
+  const suspects = listings.filter(
+    (l) => isCheatSuspect(l) && !legitIds.has(l.id)
+  );
+  // Suspects leave the cached board, which normally carries the live counts —
+  // persist their refreshed numbers so the flag survives the next rebuild
+  // (and clears itself if replies show up later).
+  const dueIds = new Set(due.map((l) => l.id));
+  await Promise.all(
+    suspects.filter((l) => dueIds.has(l.id)).map((l) => saveListing(l))
+  );
+  const suspectIds = new Set(suspects.map((l) => l.id));
+  const visible = listings.filter((l) => !suspectIds.has(l.id));
   const board: Board = {
     updatedAt: new Date().toISOString(),
-    totalLikes: listings.reduce((s, l) => s + l.likes, 0),
-    listings: sortBoard(listings),
+    totalLikes: visible.reduce((s, l) => s + l.likes, 0),
+    listings: sortBoard(visible),
   };
   await writeBoard(board);
   return board;

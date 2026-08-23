@@ -108,6 +108,31 @@ export async function removeSubscriber(
   return true;
 }
 
+export type SubscriberList = {
+  listingId: string;
+  subscribers: Omit<AlertSubscriber, "token">[];
+};
+
+/** Every alert subscriber, grouped by listing — for the admin dashboard.
+ *  Unsubscribe tokens stay server-side. */
+export async function getAllSubscriberLists(): Promise<SubscriberList[]> {
+  const { blobs } = await list({ prefix: SUBSCRIBER_PREFIX, limit: 1000 });
+  const out: SubscriberList[] = [];
+  for (const blob of blobs) {
+    const listingId = blob.pathname
+      .slice(SUBSCRIBER_PREFIX.length)
+      .replace(/-[0-9a-f]+\.json$/, "")
+      .replace(/\.json$/, "");
+    const subs = await readSubscribers(blob.url);
+    if (subs.length === 0) continue;
+    out.push({
+      listingId,
+      subscribers: subs.map(({ token: _token, ...rest }) => rest),
+    });
+  }
+  return out;
+}
+
 /** Human line for a rank move, or null when the move isn't worth an email. */
 function describeChange(prev: number, next: number): string | null {
   if (prev === next) return null;
