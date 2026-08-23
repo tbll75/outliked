@@ -65,7 +65,13 @@ export async function POST(req: Request) {
   // The announcement has to mention outliked (name or domain) AND the listed site.
   const mentionsApp = (s: string) =>
     s.includes(APP_NAME) || s.includes(APP_DOMAIN);
-  const mentionsSite = (s: string) => s.includes(domain);
+  // Whole-hostname match: a bare substring test lets "rankyourprofile.lo"
+  // piggyback on a tweet that says "rankyourprofile.lol". A leading dot is
+  // still allowed so "www.site.com" counts as mentioning "site.com".
+  const siteRe = new RegExp(
+    `(?<![a-z0-9-])${domain.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-z0-9-])`
+  );
+  const mentionsSite = (s: string) => siteRe.test(s);
   let haystack = [data.text, ...data.urls].join(" ").toLowerCase();
   if ((!mentionsApp(haystack) || !mentionsSite(haystack)) && /https:\/\/t\.co\//.test(data.text)) {
     const expanded = await expandTcoLinks(data.text);

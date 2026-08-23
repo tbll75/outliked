@@ -17,7 +17,7 @@ export function normalizeSiteUrl(raw: string): { site: string; domain: string } 
   try {
     const u = new URL(s);
     if (!u.hostname.includes(".")) return null;
-    if (u.hostname.endsWith("t.co")) return null;
+    if (u.hostname === "t.co" || u.hostname.endsWith(".t.co")) return null;
     if (PRIVATE_HOST_RE.test(u.hostname) || PRIVATE_IP_RE.test(u.hostname)) return null;
     u.protocol = "https:";
     const domain = u.hostname.replace(/^www\./, "").toLowerCase();
