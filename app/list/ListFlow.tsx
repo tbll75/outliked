@@ -249,8 +249,8 @@ export function ListFlow() {
                 onChange={(e) => setTweetText(e.target.value)}
               />
               <p className="hint">
-                just keep &quot;outliked&quot; in it. that&apos;s how we verify
-                it&apos;s real.
+                just keep &quot;outliked&quot; or the outlike.lol link in it.
+                that&apos;s how we verify it&apos;s real.
               </p>
             </div>
             <button className="btn btn-primary" onClick={openIntent}>

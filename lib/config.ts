@@ -1,6 +1,6 @@
 export const APP_NAME = "outliked";
-export const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL ?? "https://outliked.vercel.app";
+export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://outlike.lol";
+export const APP_DOMAIN = new URL(APP_URL).hostname;
 export const APP_HANDLE = "outliked";
 export const SEASON = 1;
 export const SEASON_END_ISO = "2026-10-01T00:00:00.000Z";

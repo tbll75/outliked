@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { addListing, ListingConflictError } from "@/lib/store";
 import { expandTcoLinks, fetchTweet, parseTweetUrl } from "@/lib/tweets";
-import { APP_NAME, normalizeSiteUrl } from "@/lib/config";
+import { APP_DOMAIN, APP_NAME, normalizeSiteUrl } from "@/lib/config";
 import { fetchSitePitch } from "@/lib/site-meta";
 import type { Listing } from "@/lib/types";
 
@@ -36,12 +36,14 @@ export async function POST(req: Request) {
       "Couldn't read that tweet. Is it public? Give it a few seconds and try again."
     );
 
-  // The announcement just has to mention outliked.
+  // The announcement just has to mention outliked (name or domain).
+  const mentionsApp = (s: string) =>
+    s.includes(APP_NAME) || s.includes(APP_DOMAIN);
   const haystack = [data.text, ...data.urls].join(" ").toLowerCase();
-  let verified = haystack.includes(APP_NAME);
+  let verified = mentionsApp(haystack);
   if (!verified && /https:\/\/t\.co\//.test(data.text)) {
     const expanded = await expandTcoLinks(data.text);
-    verified = expanded.some((u) => u.toLowerCase().includes(APP_NAME));
+    verified = expanded.some((u) => mentionsApp(u.toLowerCase()));
   }
   if (!verified)
     return err(
