@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { addSubscriber, SubscriberLimitError } from "@/lib/alerts";
+import { after } from "next/server";
+import {
+  addSubscriber,
+  sendWelcomeEmail,
+  SubscriberLimitError,
+} from "@/lib/alerts";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
 import { getBoard, listingExists } from "@/lib/store";
 import { parseTweetUrl } from "@/lib/tweets";
@@ -66,7 +71,11 @@ export async function POST(req: Request) {
   }
 
   try {
-    await addSubscriber(tweet.id, email, rank);
+    const sub = await addSubscriber(tweet.id, email, rank);
+    if (sub) {
+      const domain = index >= 0 ? board.listings[index].domain : null;
+      after(() => sendWelcomeEmail(sub, tweet.id, domain));
+    }
   } catch (e) {
     if (e instanceof SubscriberLimitError) {
       return err(429, "Too many subscribers for this listing.");

@@ -76,25 +76,78 @@ async function writeSubscribers(
 
 export class SubscriberLimitError extends Error {}
 
+/** Returns the new subscriber, or null when this email was already subscribed
+ *  (so callers can welcome first-timers only). */
 export async function addSubscriber(
   listingId: string,
   email: string,
   currentRank: number
-): Promise<void> {
+): Promise<AlertSubscriber | null> {
   const subs = await readSubscribersById(listingId);
   const normalized = email.trim().toLowerCase();
-  if (subs.some((s) => s.email === normalized)) return;
+  if (subs.some((s) => s.email === normalized)) return null;
   if (subs.length >= MAX_SUBSCRIBERS_PER_LISTING) {
     throw new SubscriberLimitError("Subscriber limit reached for this listing.");
   }
-  subs.push({
+  const sub: AlertSubscriber = {
     email: normalized,
     token: randomBytes(16).toString("hex"),
     createdAt: new Date().toISOString(),
     lastNotifiedAt: null,
     lastNotifiedRank: currentRank,
-  });
+  };
+  subs.push(sub);
   await writeSubscribers(listingId, subs);
+  return sub;
+}
+
+export function welcomeEmailText(domain: string | null, unsubscribeUrl: string): string {
+  const opener = domain
+    ? `${domain} is live on the ${APP_NAME} board. nice.`
+    : `your site is live on the ${APP_NAME} board. nice.`;
+  return [
+    `hey, tibo here`,
+    ``,
+    opener,
+    ``,
+    `more likes on your tweet means a higher rank, so keep sharing it. we'll email you when your rank makes a big move, nothing else.`,
+    ``,
+    `btw, I share everything I learn building products at https://tmaker.io. free playbooks and tools over there if you're into that.`,
+    ``,
+    `good luck on the board 💗`,
+    ``,
+    `unsubscribe: ${unsubscribeUrl}`,
+  ].join("\n");
+}
+
+/** Fire-and-forget welcome for a first-time alert subscriber. */
+export async function sendWelcomeEmail(
+  sub: AlertSubscriber,
+  listingId: string,
+  domain: string | null
+): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return;
+  const unsubscribeUrl = `${APP_URL}/api/alerts/unsubscribe?listing=${listingId}&token=${sub.token}`;
+  try {
+    await fetch(RESEND_ENDPOINT, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        from: process.env.ALERTS_FROM_EMAIL ?? DEFAULT_FROM,
+        to: [sub.email],
+        subject: `you're on ${APP_NAME}`,
+        text: welcomeEmailText(domain, unsubscribeUrl),
+        headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` },
+      }),
+      cache: "no-store",
+    });
+  } catch (e) {
+    console.error("welcome email failed", e);
+  }
 }
 
 export async function removeSubscriber(
