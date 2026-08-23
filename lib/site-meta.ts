@@ -35,6 +35,13 @@ export async function fetchSitePitch(site: string): Promise<string> {
     });
     clearTimeout(timer);
     if (!res.ok) return "";
+    try {
+      const finalHost = new URL(res.url).hostname;
+      if (/^(localhost|.*\.(local|internal|localhost))$/i.test(finalHost)) return "";
+      if (/^(10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.)/.test(finalHost)) return "";
+    } catch {
+      return "";
+    }
     const html = (await res.text()).slice(0, 300_000);
     const pitch =
       extractMeta(html, "og:description") ??

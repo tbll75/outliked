@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import { addSubscriber } from "@/lib/alerts";
+import { addSubscriber, SubscriberLimitError } from "@/lib/alerts";
+import { clientIp, rateLimit } from "@/lib/rateLimit";
 import { getBoard } from "@/lib/store";
 import { parseTweetUrl } from "@/lib/tweets";
 
 export const maxDuration = 30;
+
+const SUBSCRIBES_PER_MINUTE_PER_IP = 5;
 
 const NEWSLETTER_ENDPOINT =
   "https://us-central1-tmaker-hub.cloudfunctions.net/newsletter-subscribe";
@@ -33,6 +36,9 @@ async function joinNewsletter(email: string): Promise<void> {
 }
 
 export async function POST(req: Request) {
+  if (!rateLimit(`alerts:${clientIp(req)}`, SUBSCRIBES_PER_MINUTE_PER_IP)) {
+    return err(429, "Too many attempts. Give it a minute.");
+  }
   let body: { email?: string; tweetUrl?: string; newsletter?: boolean };
   try {
     body = await req.json();
@@ -52,8 +58,12 @@ export async function POST(req: Request) {
 
   try {
     await addSubscriber(tweet.id, email, index + 1);
-  } catch {
-    return err(429, "Too many subscribers for this listing.");
+  } catch (e) {
+    if (e instanceof SubscriberLimitError) {
+      return err(429, "Too many subscribers for this listing.");
+    }
+    console.error("addSubscriber failed", e);
+    return err(500, "Couldn't save that. Try again in a minute.");
   }
 
   if (body.newsletter) await joinNewsletter(email);

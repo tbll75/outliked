@@ -1,5 +1,5 @@
 import { del, list, put } from "@vercel/blob";
-import { randomBytes } from "crypto";
+import { createHmac, randomBytes } from "crypto";
 import { APP_NAME, APP_URL, formatLikes } from "./config";
 import type { Board, Listing } from "./types";
 
@@ -11,6 +11,7 @@ const SIGNIFICANT_RANK_DELTA = 3;
 /** Entering or leaving the top N counts as significant. */
 const TOP_RANK_THRESHOLD = 3;
 const MAX_SUBSCRIBERS_PER_LISTING = 20;
+const KEY_SUFFIX_BYTES = 8;
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 const DEFAULT_FROM = "outliked <outliked@mail.tmaker.io>";
 
@@ -26,8 +27,15 @@ function bust(url: string): string {
   return `${url}?v=${Date.now()}`;
 }
 
+/** Blob paths are public; an HMAC suffix keeps them unguessable even if the
+ *  store hostname ever leaks, since listing ids are public knowledge. */
 function subscriberKey(listingId: string): string {
-  return `${SUBSCRIBER_PREFIX}${listingId}.json`;
+  const secret = process.env.ALERTS_SALT ?? process.env.ADMIN_KEY ?? APP_NAME;
+  const suffix = createHmac("sha256", secret)
+    .update(listingId)
+    .digest("hex")
+    .slice(0, KEY_SUFFIX_BYTES * 2);
+  return `${SUBSCRIBER_PREFIX}${listingId}-${suffix}.json`;
 }
 
 async function readSubscribers(blobUrl: string): Promise<AlertSubscriber[]> {
@@ -66,6 +74,8 @@ async function writeSubscribers(
   });
 }
 
+export class SubscriberLimitError extends Error {}
+
 export async function addSubscriber(
   listingId: string,
   email: string,
@@ -75,7 +85,7 @@ export async function addSubscriber(
   const normalized = email.trim().toLowerCase();
   if (subs.some((s) => s.email === normalized)) return;
   if (subs.length >= MAX_SUBSCRIBERS_PER_LISTING) {
-    throw new Error("Subscriber limit reached for this listing.");
+    throw new SubscriberLimitError("Subscriber limit reached for this listing.");
   }
   subs.push({
     email: normalized,
@@ -157,47 +167,51 @@ async function sendAlertEmail(
   }
 }
 
-/** Compare two board snapshots and email subscribers about significant moves.
- *  Guard rails: only meaningful changes, one email per subscriber per cooldown
- *  window, and never re-alerting the same rank twice. */
-export async function notifySignificantRankChanges(
-  oldBoard: Board,
-  newBoard: Board
-): Promise<void> {
+/** Email each subscriber whose listing moved significantly since the last
+ *  email they received (their own baseline, so gradual drift still alerts).
+ *  Call this from exactly one place (the hourly cron) so concurrent rebuilds
+ *  can't double-send. */
+export async function notifySignificantRankChanges(board: Board): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return;
   const { blobs } = await list({ prefix: SUBSCRIBER_PREFIX, limit: 1000 });
   if (blobs.length === 0) return;
 
-  const oldRanks = new Map(oldBoard.listings.map((l, i) => [l.id, i + 1]));
+  const rankById = new Map(board.listings.map((l, i) => [l.id, i + 1]));
   const nowMs = Date.now();
   const cooldownMs = NOTIFY_COOLDOWN_HOURS * 60 * 60 * 1000;
 
   for (const blob of blobs) {
     const listingId = blob.pathname
       .slice(SUBSCRIBER_PREFIX.length)
+      .replace(/-[0-9a-f]+\.json$/, "")
       .replace(/\.json$/, "");
-    const newIndex = newBoard.listings.findIndex((l) => l.id === listingId);
-    const prevRank = oldRanks.get(listingId);
-    if (newIndex === -1 || prevRank === undefined) continue;
-    const newRank = newIndex + 1;
-    const change = describeChange(prevRank, newRank);
-    if (!change) continue;
+    const newRank = rankById.get(listingId);
+    if (!newRank) continue;
+    const listing = board.listings[newRank - 1];
 
-    const listing = newBoard.listings[newIndex];
     const subs = await readSubscribers(blob.url);
-    let dirty = false;
+    const notified = new Map<string, { at: string; rank: number }>();
     for (const sub of subs) {
-      if (sub.lastNotifiedRank === newRank) continue;
+      const change = describeChange(sub.lastNotifiedRank, newRank);
+      if (!change) continue;
       const last = sub.lastNotifiedAt ? new Date(sub.lastNotifiedAt).getTime() : 0;
       if (nowMs - last < cooldownMs) continue;
       const sent = await sendAlertEmail(apiKey, sub, listing, newRank, change);
       if (sent) {
-        sub.lastNotifiedAt = new Date().toISOString();
-        sub.lastNotifiedRank = newRank;
-        dirty = true;
+        notified.set(sub.token, { at: new Date().toISOString(), rank: newRank });
       }
     }
-    if (dirty) await writeSubscribers(listingId, subs);
+    if (notified.size > 0) {
+      const latest = await readSubscribersById(listingId);
+      for (const sub of latest) {
+        const n = notified.get(sub.token);
+        if (n) {
+          sub.lastNotifiedAt = n.at;
+          sub.lastNotifiedRank = n.rank;
+        }
+      }
+      await writeSubscribers(listingId, latest);
+    }
   }
 }

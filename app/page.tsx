@@ -76,7 +76,7 @@ function Row({ l, rank, aboveLikes }: { l: Listing; rank: number; aboveLikes?: n
 
 export default async function Home() {
   const board = await getBoard();
-  if (boardNeedsRefresh(board) && board.listings.length > 0) {
+  if (boardNeedsRefresh(board)) {
     after(async () => {
       try {
         await rebuildBoard();

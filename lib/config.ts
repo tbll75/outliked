@@ -5,6 +5,11 @@ export const APP_HANDLE = "outliked";
 export const SEASON = 1;
 export const SEASON_END_ISO = "2026-10-01T00:00:00.000Z";
 
+const PRIVATE_HOST_RE =
+  /^(localhost|.*\.(local|internal|localhost)|\d{1,3}(\.\d{1,3}){3}|\[.*\])$/i;
+const PRIVATE_IP_RE =
+  /^(10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.)/;
+
 export function normalizeSiteUrl(raw: string): { site: string; domain: string } | null {
   let s = raw.trim();
   if (!s) return null;
@@ -13,6 +18,8 @@ export function normalizeSiteUrl(raw: string): { site: string; domain: string } 
     const u = new URL(s);
     if (!u.hostname.includes(".")) return null;
     if (u.hostname.endsWith("t.co")) return null;
+    if (PRIVATE_HOST_RE.test(u.hostname) || PRIVATE_IP_RE.test(u.hostname)) return null;
+    u.protocol = "https:";
     const domain = u.hostname.replace(/^www\./, "").toLowerCase();
     u.hash = "";
     u.search = "";

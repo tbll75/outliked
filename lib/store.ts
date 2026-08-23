@@ -5,8 +5,9 @@ import { fetchTweetsBatch } from "./tweets";
 const LISTING_PREFIX = "listings/";
 const BOARD_KEY = "cache/board.json";
 
-/** Refresh no more often than this (seconds) no matter who asks. */
-const MIN_REFRESH_SECONDS = 45;
+/** Refresh no more often than this (seconds) no matter who asks.
+ *  Kept above Vercel Blob's ~60s overwrite propagation window. */
+const MIN_REFRESH_SECONDS = 60;
 
 /** How often a listing's like count should be re-fetched, by listing age.
  *  Fresh listings move fast, old ones barely move — refresh accordingly. */
@@ -126,6 +127,30 @@ function sortBoard(listings: Listing[]): Listing[] {
   );
 }
 
+/** Overlay live like counts from the cached board onto blob listings, whose
+ *  own likes are frozen at submit time. */
+function overlayCachedLikes(listings: Listing[], cached: Board | null): void {
+  const cachedById = new Map((cached?.listings ?? []).map((l) => [l.id, l]));
+  for (const l of listings) {
+    const c = cachedById.get(l.id);
+    if (c) {
+      l.likes = Math.max(l.likes, c.likes);
+      l.lastRefreshedAt = c.lastRefreshedAt ?? l.lastRefreshedAt;
+      if (c.authorAvatar) l.authorAvatar = c.authorAvatar;
+    }
+  }
+}
+
+/** Two concurrent same-domain submits can leave two blobs; keep the stronger. */
+function dedupeByDomain(listings: Listing[]): Listing[] {
+  const byDomain = new Map<string, Listing>();
+  for (const l of listings) {
+    const existing = byDomain.get(l.domain);
+    if (!existing || l.likes > existing.likes) byDomain.set(l.domain, l);
+  }
+  return [...byDomain.values()];
+}
+
 export function boardAgeSeconds(board: Board | null): number {
   if (!board) return Infinity;
   return (Date.now() - new Date(board.updatedAt).getTime()) / 1000;
@@ -138,16 +163,8 @@ export async function rebuildBoard(force = false): Promise<Board> {
   if (!force && current && !boardNeedsRefresh(current)) {
     return current;
   }
-  const listings = await getAllListings();
-  const cachedById = new Map((current?.listings ?? []).map((l) => [l.id, l]));
-  for (const l of listings) {
-    const cached = cachedById.get(l.id);
-    if (cached) {
-      l.likes = cached.likes;
-      l.lastRefreshedAt = cached.lastRefreshedAt ?? l.lastRefreshedAt;
-      if (cached.authorAvatar) l.authorAvatar = cached.authorAvatar;
-    }
-  }
+  const listings = dedupeByDomain(await getAllListings());
+  overlayCachedLikes(listings, current);
   const nowMs = Date.now();
   const due = force ? listings : listings.filter((l) => listingIsDue(l, nowMs));
   if (due.length > 0) {
@@ -164,7 +181,7 @@ export async function rebuildBoard(force = false): Promise<Board> {
       l.lastRefreshedAt = nowIso;
     }
   }
-  if (current && current.listings.length > 0 && listings.length === 0) {
+  if (!force && current && current.listings.length > 0 && listings.length === 0) {
     return current;
   }
   const board: Board = {
@@ -173,14 +190,6 @@ export async function rebuildBoard(force = false): Promise<Board> {
     listings: sortBoard(listings),
   };
   await writeBoard(board);
-  if (current && due.length > 0) {
-    const { notifySignificantRankChanges } = await import("./alerts");
-    try {
-      await notifySignificantRankChanges(current, board);
-    } catch (e) {
-      console.error("rank alerts failed", e);
-    }
-  }
   return board;
 }
 
@@ -198,17 +207,27 @@ export async function getBoard(): Promise<Board> {
 /** Add a listing (or replace the existing listing for the same domain),
  *  then rewrite the board immediately so the submitter sees their rank. */
 export async function addListing(l: Listing): Promise<Board> {
+  const current = await readBoard();
   const listings = await getAllListings();
+  overlayCachedLikes(listings, current);
   const sameDomain = listings.find(
     (x) => x.domain === l.domain && x.id !== l.id
   );
+  if (
+    sameDomain &&
+    sameDomain.authorHandle.toLowerCase() !== l.authorHandle.toLowerCase()
+  ) {
+    throw new ListingConflictError(
+      `${l.domain} is already on the board, listed by @${sameDomain.authorHandle}. Only the same account can replace its announcement tweet.`
+    );
+  }
   if (sameDomain && sameDomain.likes > l.likes) {
     throw new ListingConflictError(
       `${l.domain} is already on the board with ${sameDomain.likes} likes. A new announcement tweet can only take over once it has more likes than the current one.`
     );
   }
-  if (sameDomain) await deleteListing(sameDomain.id);
   await saveListing(l);
+  if (sameDomain) await deleteListing(sameDomain.id);
   const next = listings.filter((x) => x.id !== l.id && x.domain !== l.domain);
   next.push(l);
   const board: Board = {

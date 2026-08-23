@@ -41,6 +41,7 @@ export async function fetchTweetSyndication(
     if (!res.ok) return null;
     const j = await res.json();
     if (!j?.id_str && !j?.text) return null;
+    if (typeof j.favorite_count !== "number") return null;
     const urls: string[] = (j.entities?.urls ?? [])
       .map((u: { expanded_url?: string }) => u.expanded_url)
       .filter(Boolean);
@@ -48,7 +49,7 @@ export async function fetchTweetSyndication(
       id: j.id_str ?? id,
       text: j.text ?? "",
       urls,
-      likes: j.favorite_count ?? 0,
+      likes: j.favorite_count,
       authorHandle: j.user?.screen_name ?? "",
       authorName: j.user?.name ?? "",
       authorAvatar: j.user?.profile_image_url_https ?? "",
@@ -96,14 +97,14 @@ export async function fetchTweetsApify(
     const items: ApifyTweet[] = await res.json();
     if (!Array.isArray(items)) return out;
     for (const t of items) {
-      if (!t?.id) continue;
+      if (!t?.id || typeof t.likeCount !== "number") continue;
       out.set(t.id, {
         id: t.id,
         text: t.fullText ?? t.text ?? "",
         urls: (t.entities?.urls ?? [])
           .map((u) => u.expanded_url)
           .filter((u): u is string => Boolean(u)),
-        likes: t.likeCount ?? 0,
+        likes: t.likeCount,
         authorHandle: t.author?.userName ?? "",
         authorName: t.author?.name ?? "",
         authorAvatar: t.author?.profilePicture ?? "",

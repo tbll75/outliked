@@ -158,7 +158,9 @@ export function ListFlow() {
                   value={alertEmail}
                   onChange={(e) => setAlertEmail(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && alertEmail.trim()) subscribeAlerts();
+                    if (e.key === "Enter" && alertEmail.trim() && alertState !== "saving") {
+                      subscribeAlerts();
+                    }
                   }}
                   placeholder="you@yoursite.com"
                 />
@@ -249,7 +251,7 @@ export function ListFlow() {
                 onChange={(e) => setTweetText(e.target.value)}
               />
               <p className="hint">
-                just keep &quot;outliked&quot; or the outlike.lol link in it.
+                just keep &quot;outliked&quot; and your site&apos;s name in it.
                 that&apos;s how we verify it&apos;s real.
               </p>
             </div>
