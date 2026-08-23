@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Space_Grotesk } from "next/font/google";
 import { APP_URL } from "@/lib/config";
 import "./globals.css";
@@ -36,7 +37,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={grotesk.variable}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Script
+          defer
+          data-website-id="dfid_E1lTmgMNRZDYJzzi9hhWi"
+          data-domain="www.outlike.lol"
+          src="https://datafa.st/js/script.js"
+        />
+      </body>
     </html>
   );
 }
