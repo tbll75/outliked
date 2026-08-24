@@ -63,7 +63,9 @@ export default async function AdminPage({
         rank: onBoard?.rank ?? null,
         hidden: hidden.has(l.id),
         banned: isBanned(moderation, l.domain, l.authorHandle),
-        cheat: isCheatSuspect({ likes, replies }) && !legit.has(l.id),
+        cheat:
+          (isCheatSuspect({ likes, replies }) || l.cheatFlaggedAt !== undefined) &&
+          !legit.has(l.id),
         legit: legit.has(l.id),
         subscriberCount: subsByListing.get(l.id) ?? 0,
         clicks: clicks[l.id] ?? 0,

@@ -2,6 +2,7 @@ import { del, list, put } from "@vercel/blob";
 import type { Board, Listing } from "./types";
 import { fetchTweetsBatch } from "./tweets";
 import {
+  CHEAT_MAX_REPLIES,
   isBanned,
   isCheatSuspect,
   readModeration,
@@ -221,6 +222,12 @@ export async function rebuildBoard(
   overlayCachedLikes(listings, current);
   const nowMs = Date.now();
   const due = force ? listings : listings.filter((l) => listingIsDue(l, nowMs));
+  // Peak like count seen before this refresh (blob value, overlaid with the
+  // cached board). The anti-cheat must judge on the highest count observed:
+  // sources disagree by a few likes (and X purges bought likes), so a listing
+  // that tripped the flag at 101 must not flap back on when a later fetch
+  // says 94.
+  const peakLikes = new Map(listings.map((l) => [l.id, l.likes]));
   if (due.length > 0) {
     const fresh = await fetchTweetsBatch(
       due.map((l) => ({ id: l.id, tweetUrl: l.tweetUrl }))
@@ -242,17 +249,45 @@ export async function rebuildBoard(
   }
   // Anti-cheat: big like counts with a dead reply section get pulled off the
   // public board automatically, unless the admin marked the listing legit.
+  // The flag is LATCHED via cheatFlaggedAt: once tripped, a listing stays off
+  // the board until replies actually appear (or the admin marks it legit) —
+  // a like count dipping back under the threshold must not unhide it.
   const legitIds = new Set(mod.legit);
-  const suspects = listings.filter(
-    (l) => isCheatSuspect(l) && !legitIds.has(l.id)
-  );
+  const flagIso = new Date().toISOString();
+  const suspects: Listing[] = [];
+  const changedFlags: Listing[] = [];
+  for (const l of listings) {
+    if (legitIds.has(l.id)) {
+      if (l.cheatFlaggedAt) {
+        delete l.cheatFlaggedAt;
+        changedFlags.push(l);
+      }
+      continue;
+    }
+    const peak = Math.max(l.likes, peakLikes.get(l.id) ?? 0);
+    const suspect =
+      isCheatSuspect({ likes: peak, replies: l.replies }) ||
+      (l.cheatFlaggedAt !== undefined && (l.replies ?? 0) <= CHEAT_MAX_REPLIES);
+    if (suspect) {
+      if (!l.cheatFlaggedAt) {
+        l.cheatFlaggedAt = flagIso;
+        changedFlags.push(l);
+      }
+      suspects.push(l);
+    } else if (l.cheatFlaggedAt) {
+      // replies finally showed up — clear the latch, listing returns below
+      delete l.cheatFlaggedAt;
+      changedFlags.push(l);
+    }
+  }
   // Suspects leave the cached board, which normally carries the live counts —
-  // persist their refreshed numbers so the flag survives the next rebuild
-  // (and clears itself if replies show up later).
+  // persist their refreshed numbers (and any latch changes) so the flag
+  // survives the next rebuild.
   const dueIds = new Set(due.map((l) => l.id));
-  await Promise.all(
-    suspects.filter((l) => dueIds.has(l.id)).map((l) => saveListing(l))
-  );
+  const toSave = new Map<string, Listing>();
+  for (const l of suspects) if (dueIds.has(l.id)) toSave.set(l.id, l);
+  for (const l of changedFlags) toSave.set(l.id, l);
+  await Promise.all([...toSave.values()].map((l) => saveListing(l)));
   const suspectIds = new Set(suspects.map((l) => l.id));
   const visible = listings.filter((l) => !suspectIds.has(l.id));
   const board: Board = {

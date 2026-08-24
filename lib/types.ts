@@ -10,6 +10,7 @@ export type Listing = {
   authorAvatar: string;
   likes: number;
   replies?: number; // reply count, used by the anti-cheat check
+  cheatFlaggedAt?: string; // ISO, set when the auto anti-cheat pulled it off the board; cleared when replies appear or admin marks legit
   createdAt: string; // ISO, when listed
   lastRefreshedAt?: string; // ISO, when likes were last re-fetched
   hasFavicon?: boolean; // false when Google only has its generic globe
