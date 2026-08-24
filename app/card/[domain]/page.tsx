@@ -1,18 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { APP_NAME, APP_URL, formatLikes } from "@/lib/config";
-import { getBoard } from "@/lib/store";
+import { findRankedListing } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-async function findListing(domainParam: string) {
-  const domain = decodeURIComponent(domainParam).toLowerCase();
-  const board = await getBoard();
-  const index = board.listings.findIndex((l) => l.domain === domain);
-  if (index === -1) return null;
-  return { listing: board.listings[index], rank: index + 1 };
-}
+// cache(): generateMetadata and the page share one lookup per request.
+const findListing = cache((domainParam: string) =>
+  findRankedListing(decodeURIComponent(domainParam).toLowerCase())
+);
 
 export async function generateMetadata({
   params,

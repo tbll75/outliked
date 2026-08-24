@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { formatLikes } from "@/lib/config";
-import { getBoard } from "@/lib/store";
+import { findRankedListing } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const alt = "outliked rank card";
@@ -18,12 +18,11 @@ export default async function CardImage({
   let likes = 0;
   let handle = "";
   try {
-    const board = await getBoard();
-    const index = board.listings.findIndex((l) => l.domain === domain);
-    if (index !== -1) {
-      rank = index + 1;
-      likes = board.listings[index].likes;
-      handle = board.listings[index].authorHandle;
+    const found = await findRankedListing(domain);
+    if (found) {
+      rank = found.rank;
+      likes = found.listing.likes;
+      handle = found.listing.authorHandle;
     }
   } catch {
     /* render a generic card */

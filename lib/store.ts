@@ -308,3 +308,36 @@ export async function addListing(l: Listing): Promise<number> {
 }
 
 export class ListingConflictError extends Error {}
+
+/** Locate a listing by domain with its rank, for the rank card. Falls back to
+ *  the durable listing blobs when the cached board hasn't folded a fresh
+ *  submit in yet (rebuilds are throttled and blob overwrites take ~60s to
+ *  propagate) — without this, "flex your rank" 404s for the first minute or
+ *  two after listing. */
+export async function findRankedListing(
+  domain: string
+): Promise<{ listing: Listing; rank: number } | null> {
+  const board = await getBoard();
+  const index = board.listings.findIndex((l) => l.domain === domain);
+  if (index !== -1) return { listing: board.listings[index], rank: index + 1 };
+  try {
+    const all = await getAllListings();
+    const listing = all.find((l) => l.domain === domain);
+    if (!listing) return null;
+    const mod = await readModeration();
+    if (
+      mod.hidden.includes(listing.id) ||
+      isBanned(mod, listing.domain, listing.authorHandle)
+    ) {
+      return null;
+    }
+    const merged = [
+      ...board.listings.filter((l) => l.domain !== domain),
+      listing,
+    ];
+    const rank = sortBoard(merged).findIndex((l) => l.id === listing.id) + 1;
+    return { listing, rank };
+  } catch {
+    return null;
+  }
+}
