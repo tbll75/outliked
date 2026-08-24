@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { boardNeedsRefresh, getBoard, rebuildBoard } from "@/lib/store";
 import { formatLikes } from "@/lib/config";
 import { Board } from "./Board";
-import { AutoRefresh, TimeAgo } from "./live";
+import { AutoRefresh } from "./live";
 import { ClaimBar } from "./ClaimBar";
 
 export const dynamic = "force-dynamic";
@@ -20,9 +20,6 @@ export default async function Home() {
     });
   }
   const { listings } = board;
-  const newest = [...listings]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 10);
 
   return (
     <>
@@ -50,9 +47,8 @@ export default async function Home() {
             or get famous
           </h1>
           <p className="hero-sub">
-            The leaderboard where <b>likes are the only currency</b>. Listing is
-            free. You just have to tweet it. The most-liked announcement tweet
-            holds <b>#1</b>. Until someone outlikes it.
+            <b>Likes are the only currency.</b> List free, tweet it — the
+            most-liked tweet holds <b>#1</b>.
           </p>
           <ClaimBar />
           <p className="hero-note">
@@ -75,27 +71,7 @@ export default async function Home() {
           </div>
         </section>
 
-        {newest.length >= 3 && (
-          <div className="ticker">
-            <div className="ticker-track">
-              {[...newest, ...newest].map((l, i) => (
-                <span className="ticker-item" key={`${l.id}-${i}`}>
-                  🔥 <b>{l.name}</b> listed by @{l.authorHandle} ·{" "}
-                  <span className="likes">♥ {formatLikes(l.likes)}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
         <section className="board" id="board">
-          <div className="board-head">
-            <h2>the board</h2>
-            <div className="board-meta">
-              <span className="live-dot" />
-              <TimeAgo iso={board.updatedAt} /> · likes update automatically
-            </div>
-          </div>
           {listings.length === 0 ? (
             <div className="empty">
               <div className="big">👑</div>
@@ -108,7 +84,7 @@ export default async function Home() {
               <ClaimBar />
             </div>
           ) : (
-            <Board listings={listings} />
+            <Board listings={listings} updatedAt={board.updatedAt} />
           )}
         </section>
 

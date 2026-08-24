@@ -9,6 +9,7 @@ import {
 } from "@/lib/config";
 import type { Listing } from "@/lib/types";
 import { Favicon } from "./Favicon";
+import { TimeAgo } from "./live";
 
 /** Fire-and-forget click tracking; must never block the navigation. */
 function trackClick(id: string) {
@@ -144,7 +145,13 @@ function Row({
   );
 }
 
-export function Board({ listings }: { listings: Listing[] }) {
+export function Board({
+  listings,
+  updatedAt,
+}: {
+  listings: Listing[];
+  updatedAt: string;
+}) {
   const [tab, setTabState] = useState("all");
   const [scope, setScopeState] = useState<"all" | "week">("all");
   const [page, setPage] = useState(1);
@@ -186,24 +193,34 @@ export function Board({ listings }: { listings: Listing[] }) {
 
   return (
     <>
-      <div className="board-controls">
-        <div className="scope-switch">
-          <button
-            className={scope === "all" ? "on" : ""}
-            onClick={() => setScope("all")}
-          >
-            👑 all time
-          </button>
-          <button
-            className={scope === "week" ? "on" : ""}
-            onClick={() => setScope("week")}
-          >
-            ⚡ this week
-          </button>
+      <div className="board-head">
+        <div className="board-title">
+          <h2>the board</h2>
+          <div className="scope-switch">
+            <button
+              className={scope === "all" ? "on" : ""}
+              onClick={() => setScope("all")}
+            >
+              👑 all time
+            </button>
+            <button
+              className={scope === "week" ? "on" : ""}
+              onClick={() => setScope("week")}
+            >
+              ⚡ this week
+            </button>
+          </div>
         </div>
-        {scope === "week" && (
-          <span className="scope-hint">fresh board every monday 00:01 PT</span>
-        )}
+        <div className="board-meta">
+          <span className="live-dot" />
+          {scope === "week" ? (
+            <>fresh board every monday 00:01 PT</>
+          ) : (
+            <>
+              <TimeAgo iso={updatedAt} /> · likes update automatically
+            </>
+          )}
+        </div>
       </div>
       <div className="league-tabs">
         {TABS.map((t) => (
