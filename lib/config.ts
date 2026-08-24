@@ -43,6 +43,21 @@ export function leagueIdForFollowers(followers: number): string {
   return LEAGUES[LEAGUES.length - 1].id;
 }
 
+/** Start of the current ranking week: Monday 00:01 America/Los_Angeles.
+ *  The weekly board is simply every listing created after this instant, so
+ *  the reset needs no cron — the filter moves on its own. */
+export function currentWeekStartIso(now: Date = new Date()): string {
+  // LA wall-clock rendered into a Date whose fields read as LA local time.
+  const la = new Date(
+    now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" })
+  );
+  const offset = now.getTime() - la.getTime();
+  const start = new Date(la);
+  start.setDate(la.getDate() - ((la.getDay() + 6) % 7)); // back to Monday
+  start.setHours(0, 1, 0, 0);
+  return new Date(start.getTime() + offset).toISOString();
+}
+
 export function formatLikes(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
   if (n >= 10_000) return `${Math.round(n / 1000)}k`;

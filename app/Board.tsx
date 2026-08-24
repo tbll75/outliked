@@ -1,7 +1,12 @@
 "use client";
 
-import { Fragment, useState } from "react";
-import { formatLikes, LEAGUES, leagueIdForFollowers } from "@/lib/config";
+import { Fragment, useMemo, useState } from "react";
+import {
+  currentWeekStartIso,
+  formatLikes,
+  LEAGUES,
+  leagueIdForFollowers,
+} from "@/lib/config";
 import type { Listing } from "@/lib/types";
 import { Favicon } from "./Favicon";
 
@@ -141,15 +146,28 @@ function Row({
 
 export function Board({ listings }: { listings: Listing[] }) {
   const [tab, setTabState] = useState("all");
+  const [scope, setScopeState] = useState<"all" | "week">("all");
   const [page, setPage] = useState(1);
   const setTab = (id: string) => {
     setTabState(id);
     setPage(1);
   };
+  const setScope = (s: "all" | "week") => {
+    setScopeState(s);
+    setPage(1);
+  };
+  // Weekly board: everything listed since Monday 00:01 PT, re-ranked among
+  // itself. Fresh listings compete only with this week's crop, so newcomers
+  // get a winnable board every week while all-time stays the default.
+  const weekStart = useMemo(() => currentWeekStartIso(), []);
+  const scoped =
+    scope === "week"
+      ? listings.filter((l) => l.createdAt >= weekStart)
+      : listings;
   const filtered =
     tab === "all"
-      ? listings
-      : listings.filter(
+      ? scoped
+      : scoped.filter(
           (l) =>
             typeof l.authorFollowers === "number" &&
             leagueIdForFollowers(l.authorFollowers) === tab
@@ -168,6 +186,25 @@ export function Board({ listings }: { listings: Listing[] }) {
 
   return (
     <>
+      <div className="board-controls">
+        <div className="scope-switch">
+          <button
+            className={scope === "all" ? "on" : ""}
+            onClick={() => setScope("all")}
+          >
+            👑 all time
+          </button>
+          <button
+            className={scope === "week" ? "on" : ""}
+            onClick={() => setScope("week")}
+          >
+            ⚡ this week
+          </button>
+        </div>
+        {scope === "week" && (
+          <span className="scope-hint">fresh board every monday 00:01 PT</span>
+        )}
+      </div>
       <div className="league-tabs">
         {TABS.map((t) => (
           <button
@@ -181,7 +218,9 @@ export function Board({ listings }: { listings: Listing[] }) {
       </div>
       {filtered.length === 0 ? (
         <div className="league-empty">
-          nobody from this league yet. the crown&apos;s just sitting there 👑
+          {scope === "week"
+            ? "nobody's listed this week yet. cleanest shot at #1 you'll ever get 👑"
+            : "nobody from this league yet. the crown's just sitting there 👑"}
         </div>
       ) : (
         <div className="rows">
