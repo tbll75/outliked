@@ -31,6 +31,26 @@ const TABS = [
   ...LEAGUES.map((l) => ({ id: l.id, label: `${l.label} followers` })),
 ];
 
+const PER_PAGE = 50;
+
+/** Page numbers to render: 1 … around current … last, à la classic pagers. */
+function pageItems(current: number, total: number): (number | "…")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const wanted = new Set([1, total, current - 1, current, current + 1]);
+  if (current <= 3) [2, 3, 4].forEach((p) => wanted.add(p));
+  if (current >= total - 2)
+    [total - 3, total - 2, total - 1].forEach((p) => wanted.add(p));
+  const sorted = [...wanted]
+    .filter((p) => p >= 1 && p <= total)
+    .sort((a, b) => a - b);
+  const out: (number | "…")[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) out.push("…");
+    out.push(sorted[i]);
+  }
+  return out;
+}
+
 function Row({
   l,
   rank,
@@ -120,7 +140,12 @@ function Row({
 }
 
 export function Board({ listings }: { listings: Listing[] }) {
-  const [tab, setTab] = useState("all");
+  const [tab, setTabState] = useState("all");
+  const [page, setPage] = useState(1);
+  const setTab = (id: string) => {
+    setTabState(id);
+    setPage(1);
+  };
   const filtered =
     tab === "all"
       ? listings
@@ -129,6 +154,17 @@ export function Board({ listings }: { listings: Listing[] }) {
             typeof l.authorFollowers === "number" &&
             leagueIdForFollowers(l.authorFollowers) === tab
         );
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * PER_PAGE;
+  const paged = filtered.slice(start, start + PER_PAGE);
+  const goTo = (p: number) => {
+    setPage(p);
+    // instant: the page-height jump makes smooth scrolling disorienting
+    document.getElementById("board")?.scrollIntoView({ behavior: "instant" });
+  };
+  const fmt = (n: number) => n.toLocaleString("en-US");
 
   return (
     <>
@@ -149,17 +185,61 @@ export function Board({ listings }: { listings: Listing[] }) {
         </div>
       ) : (
         <div className="rows">
-          {filtered.map((l, i) => (
-            <Fragment key={l.id}>
-              {i === 3 && <div className="podium-divider" aria-hidden />}
-              <Row
-                l={l}
-                rank={i + 1}
-                aboveLikes={i > 0 ? filtered[i - 1].likes : undefined}
-              />
-            </Fragment>
-          ))}
+          {paged.map((l, i) => {
+            const idx = start + i;
+            return (
+              <Fragment key={l.id}>
+                {idx === 3 && <div className="podium-divider" aria-hidden />}
+                <Row
+                  l={l}
+                  rank={idx + 1}
+                  aboveLikes={idx > 0 ? filtered[idx - 1].likes : undefined}
+                />
+              </Fragment>
+            );
+          })}
         </div>
+      )}
+      {totalPages > 1 && (
+        <>
+          <div className="pager">
+            <button
+              className="pager-arrow"
+              disabled={safePage === 1}
+              onClick={() => goTo(safePage - 1)}
+              aria-label="previous page"
+            >
+              ‹
+            </button>
+            {pageItems(safePage, totalPages).map((it, i) =>
+              it === "…" ? (
+                <span key={`e${i}`} className="pager-ellipsis">
+                  …
+                </span>
+              ) : (
+                <button
+                  key={it}
+                  className={`pager-num ${it === safePage ? "active" : ""}`}
+                  onClick={() => goTo(it)}
+                >
+                  {it}
+                </button>
+              )
+            )}
+            <button
+              className="pager-arrow"
+              disabled={safePage === totalPages}
+              onClick={() => goTo(safePage + 1)}
+              aria-label="next page"
+            >
+              ›
+            </button>
+          </div>
+          <div className="pager-count">
+            {fmt(start + 1)} – {fmt(Math.min(start + PER_PAGE, filtered.length))}{" "}
+            of {fmt(filtered.length)}
+          </div>
+        </>
       )}
     </>
   );

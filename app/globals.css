@@ -415,6 +415,62 @@ button {
   border-radius: var(--radius);
 }
 
+/* ---------- pagination ---------- */
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 22px;
+  flex-wrap: wrap;
+}
+
+.pager-num,
+.pager-arrow {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 6px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.pager-num:hover:not(.active),
+.pager-arrow:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--card-hover);
+}
+
+.pager-num.active {
+  background: var(--grad);
+  color: #fff;
+  box-shadow: 0 2px 16px rgba(255, 46, 140, 0.35);
+  cursor: default;
+}
+
+.pager-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pager-ellipsis {
+  color: var(--muted);
+  padding: 0 2px;
+}
+
+.pager-count {
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 10px;
+}
+
 .rank {
   display: flex;
   align-items: center;
