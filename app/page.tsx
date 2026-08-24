@@ -159,6 +159,10 @@ export default async function Home() {
               inspired by outbid.lol · built by{" "}
               <a href="https://x.com/tibo_maker" target="_blank" rel="noopener">
                 tibo_maker
+              </a>{" "}
+              · ai tweets idea by{" "}
+              <a href="https://x.com/aidancramer" target="_blank" rel="noopener">
+                aidancramer
               </a>
             </span>
           </div>
