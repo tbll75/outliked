@@ -19,6 +19,8 @@ async function scout(req: Request) {
   const dryRun = new URL(req.url).searchParams.get("dry") === "1";
   try {
     const result = await scoutLaunchTweets(dryRun);
+    // One line per run in the Vercel logs: what was scanned, added, skipped.
+    console.log("scout run", JSON.stringify({ dryRun, ...result }));
     if (!dryRun && result.added.length > 0) {
       after(async () => {
         try {

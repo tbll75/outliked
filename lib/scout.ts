@@ -3,7 +3,7 @@ import { normalizeSiteUrl } from "./config";
 import { EMPTY_MODERATION, isBanned, readModeration } from "./moderation";
 import { checkFavicon, fetchSitePitch } from "./site-meta";
 import { addListing, getAllListings, ListingConflictError } from "./store";
-import { searchTweetsApify } from "./tweets";
+import { fetchTweet, searchTweetsApify } from "./tweets";
 import type { Listing, TweetData } from "./types";
 
 /** The alternative, zero-friction listing path: a cron scans X for fresh
@@ -117,6 +117,15 @@ function productUrl(tweet: TweetData): { site: string; domain: string } | null {
   return unique[0];
 }
 
+/** Which search query surfaced this tweet — stored on the listing so we can
+ *  tell how much of the flywheel producthunt.com / #launch actually drive. */
+function matchedTerm(tweet: TweetData): string {
+  const hay = [tweet.text, ...tweet.urls].join(" ").toLowerCase();
+  if (hay.includes("outlike.lol")) return "outlike.lol";
+  if (hay.includes("producthunt.com")) return "producthunt.com";
+  return "#launch";
+}
+
 export type ScoutResult = {
   scanned: number;
   fresh: number;
@@ -136,6 +145,9 @@ export async function scoutLaunchTweets(dryRun = false): Promise<ScoutResult> {
     getAllListings(),
     readModeration().catch(() => EMPTY_MODERATION),
   ]);
+  // `seen` marks tweets we're permanently done with. A tweet skipped only
+  // for too-few-likes is deliberately NOT marked: likes grow, so it gets
+  // re-checked every scan while it stays inside the search window.
   const seen = new Set(state.seen);
   const listedIds = new Set(existing.map((l) => l.id));
   const listedDomains = new Set(existing.map((l) => l.domain));
@@ -147,32 +159,61 @@ export async function scoutLaunchTweets(dryRun = false): Promise<ScoutResult> {
       skip("already-seen");
       continue;
     }
-    seen.add(tweet.id);
     if (!tweet.authorHandle) {
+      seen.add(tweet.id);
       skip("no-author");
-      continue;
-    }
-    if (tweet.likes < MIN_LIKES) {
-      skip("too-few-likes");
       continue;
     }
     const site = productUrl(tweet);
     if (!site) {
+      seen.add(tweet.id);
       skip("no-product-url");
       continue;
     }
+
+    // The anchor is the tweet that gets listed and ranked. When the product
+    // link lives in a reply under the author's own launch tweet ("link in
+    // the comments"), anchor to the thread root — that's the tweet with the
+    // likes. A reply into someone else's thread is drive-by promo: skip.
+    let anchor = tweet;
+    if (tweet.conversationId && tweet.conversationId !== tweet.id) {
+      if (listedIds.has(tweet.conversationId)) {
+        seen.add(tweet.id);
+        skip("root-already-listed");
+        continue;
+      }
+      const root = await fetchTweet(tweet.conversationId);
+      if (
+        !root ||
+        !root.authorHandle ||
+        root.authorHandle.toLowerCase() !== tweet.authorHandle.toLowerCase()
+      ) {
+        seen.add(tweet.id);
+        skip("reply-to-other-thread");
+        continue;
+      }
+      anchor = root;
+    }
+
     if (listedDomains.has(site.domain)) {
       // Never auto-take-over an existing listing; the manual flow owns that.
+      seen.add(tweet.id);
       skip("domain-already-listed");
       continue;
     }
-    if (isBanned(moderation, site.domain, tweet.authorHandle)) {
+    if (isBanned(moderation, site.domain, anchor.authorHandle)) {
+      seen.add(tweet.id);
       skip("banned");
       continue;
     }
+    if (anchor.likes < MIN_LIKES) {
+      skip("too-few-likes"); // not seen — retried next scan once likes catch up
+      continue;
+    }
 
+    const term = matchedTerm(tweet);
     if (dryRun) {
-      added.push(`${site.domain} (dry) via @${tweet.authorHandle}`);
+      added.push(`${site.domain} (dry, via ${term}) @${anchor.authorHandle}`);
       continue;
     }
 
@@ -181,34 +222,44 @@ export async function scoutLaunchTweets(dryRun = false): Promise<ScoutResult> {
       checkFavicon(site.domain),
     ]);
     const listing: Listing = {
-      id: tweet.id,
+      id: anchor.id,
       site: site.site,
       domain: site.domain,
       name: site.domain,
       pitch,
-      tweetUrl: `https://x.com/${tweet.authorHandle}/status/${tweet.id}`,
-      authorHandle: tweet.authorHandle,
-      authorName: tweet.authorName || tweet.authorHandle,
-      authorAvatar: tweet.authorAvatar,
-      likes: tweet.likes,
-      replies: tweet.replies,
+      tweetUrl: `https://x.com/${anchor.authorHandle}/status/${anchor.id}`,
+      authorHandle: anchor.authorHandle,
+      authorName: anchor.authorName || anchor.authorHandle,
+      authorAvatar: anchor.authorAvatar,
+      likes: anchor.likes,
+      replies: anchor.replies,
       createdAt: new Date().toISOString(),
       hasFavicon,
-      authorFollowers: tweet.authorFollowers,
+      authorFollowers: anchor.authorFollowers ?? tweet.authorFollowers,
       source: "scout",
+      scoutTerm: term,
     };
     try {
       await addListing(listing);
+      listedIds.add(anchor.id);
       listedDomains.add(site.domain);
-      added.push(site.domain);
+      seen.add(tweet.id);
+      added.push(`${site.domain} (via ${term})`);
     } catch (e) {
-      if (e instanceof ListingConflictError) skip("conflict");
-      else throw e;
+      if (e instanceof ListingConflictError) {
+        seen.add(tweet.id);
+        skip("conflict");
+      } else throw e;
     }
   }
 
   if (!dryRun) {
     await writeState({ seen: [...seen].slice(-SEEN_CAP) });
   }
-  return { scanned: tweets.length, fresh: tweets.length - (skipped["already-seen"] ?? 0), added, skipped };
+  return {
+    scanned: tweets.length,
+    fresh: tweets.length - (skipped["already-seen"] ?? 0),
+    added,
+    skipped,
+  };
 }

@@ -75,6 +75,8 @@ type ApifyTweet = {
   text?: string;
   likeCount?: number;
   replyCount?: number;
+  isReply?: boolean;
+  conversationId?: string;
   entities?: { urls?: { expanded_url?: string }[] };
   author?: {
     userName?: string;
@@ -99,6 +101,7 @@ function mapApifyTweet(t: ApifyTweet): TweetData | null {
     authorAvatar: t.author?.profilePicture ?? "",
     authorFollowers:
       typeof t.author?.followers === "number" ? t.author.followers : undefined,
+    conversationId: t.conversationId,
   };
 }
 

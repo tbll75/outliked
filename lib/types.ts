@@ -15,6 +15,7 @@ export type Listing = {
   hasFavicon?: boolean; // false when Google only has its generic globe
   authorFollowers?: number; // author's follower count, when known
   source?: "scout"; // set when auto-added by the launch-tweet scout
+  scoutTerm?: string; // which search term surfaced it (outlike.lol / producthunt.com / #launch)
 };
 
 export type Board = {
@@ -33,4 +34,5 @@ export type TweetData = {
   authorName: string;
   authorAvatar: string;
   authorFollowers?: number;
+  conversationId?: string; // thread root tweet id; differs from id on replies
 };
