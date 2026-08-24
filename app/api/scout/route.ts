@@ -3,7 +3,8 @@ import { after } from "next/server";
 import { scoutLaunchTweets } from "@/lib/scout";
 import { rebuildBoard } from "@/lib/store";
 
-export const maxDuration = 60;
+// Root-tweet fetches + per-candidate AI validation add up; give the scan room.
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 function cronAuthorized(req: Request): boolean {

@@ -1,4 +1,5 @@
 import { list, put } from "@vercel/blob";
+import { generateText } from "ai";
 import { normalizeSiteUrl } from "./config";
 import { EMPTY_MODERATION, isBanned, readModeration } from "./moderation";
 import { checkFavicon, fetchSitePitch } from "./site-meta";
@@ -12,10 +13,18 @@ import type { Listing, TweetData } from "./types";
  *  if its author had submitted it. */
 
 const SCOUT_KEY = "cache/scout.json";
-const SEARCH_TERMS = ['"outlike.lol"', '"producthunt.com"', "#launch"];
-const MAX_TWEETS_PER_SCAN = 60;
+const SEARCH_TERMS = [
+  '"outlike.lol"',
+  '"producthunt.com"',
+  '"product hunt"',
+  '"producthunt"',
+  "#launch",
+];
+const MAX_TWEETS_PER_SCAN = 80;
 /** A launch tweet with a couple of likes shows a human behind it; keeps
- *  hashtag-spam bots off the board while staying easy to clear. */
+ *  hashtag-spam bots off the board while staying easy to clear. Product Hunt
+ *  launch posts bypass this gate when the AI check validates them — a PH
+ *  launch minutes old legitimately has 0 likes. */
 const MIN_LIKES = 2;
 const MAX_ADDS_PER_SCAN = 15;
 const SEEN_CAP = 3000;
@@ -118,12 +127,47 @@ function productUrl(tweet: TweetData): { site: string; domain: string } | null {
 }
 
 /** Which search query surfaced this tweet — stored on the listing so we can
- *  tell how much of the flywheel producthunt.com / #launch actually drive. */
-function matchedTerm(tweet: TweetData): string {
-  const hay = [tweet.text, ...tweet.urls].join(" ").toLowerCase();
+ *  tell how much of the flywheel product hunt / #launch actually drive. */
+function matchedTerm(hay: string): string {
   if (hay.includes("outlike.lol")) return "outlike.lol";
-  if (hay.includes("producthunt.com")) return "producthunt.com";
+  if (hay.includes("producthunt") || hay.includes("product hunt")) {
+    return "product hunt";
+  }
   return "#launch";
+}
+
+/** AI gate: is this thread a genuine launch announcement by the maker?
+ *  Returns null when the model is unavailable (gateway down / rate-limited)
+ *  so callers can fall back to the likes gate instead of blocking. */
+async function isLaunchPost(
+  threadText: string,
+  domain: string
+): Promise<boolean | null> {
+  try {
+    const { text } = await generateText({
+      model: "openai/gpt-5-nano",
+      prompt: `You review tweets for a product-launch leaderboard. Decide if the tweet thread below is a genuine product launch announcement posted by the maker or team of the product itself — e.g. "introducing X", "we just launched", "launching on Product Hunt today". Answer NO for: news or commentary about someone else's launch, aggregator/curator accounts, job posts, giveaways, engagement bait, follow-for-follow spam, or generic marketing threads that don't announce a specific product.
+
+The product's website is ${domain}.
+
+Tweet thread:
+${threadText.slice(0, 1500)}
+
+Answer with exactly YES or NO.`,
+      maxOutputTokens: 500,
+      providerOptions: {
+        openai: { reasoningEffort: "minimal", textVerbosity: "low" },
+      },
+      maxRetries: 1,
+      abortSignal: AbortSignal.timeout(8000),
+    });
+    const verdict = text.trim().toUpperCase();
+    if (verdict.startsWith("YES")) return true;
+    if (verdict.startsWith("NO")) return false;
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export type ScoutResult = {
@@ -164,12 +208,6 @@ export async function scoutLaunchTweets(dryRun = false): Promise<ScoutResult> {
       skip("no-author");
       continue;
     }
-    const site = productUrl(tweet);
-    if (!site) {
-      seen.add(tweet.id);
-      skip("no-product-url");
-      continue;
-    }
 
     // The anchor is the tweet that gets listed and ranked. When the product
     // link lives in a reply under the author's own launch tweet ("link in
@@ -195,6 +233,15 @@ export async function scoutLaunchTweets(dryRun = false): Promise<ScoutResult> {
       anchor = root;
     }
 
+    // Product URL: the matched tweet first, then the thread root — the PH
+    // pattern is "launch tweet with the site link, PH link in a reply".
+    const site = productUrl(tweet) ?? (anchor !== tweet ? productUrl(anchor) : null);
+    if (!site) {
+      seen.add(tweet.id);
+      skip("no-product-url");
+      continue;
+    }
+
     if (listedDomains.has(site.domain)) {
       // Never auto-take-over an existing listing; the manual flow owns that.
       seen.add(tweet.id);
@@ -206,12 +253,33 @@ export async function scoutLaunchTweets(dryRun = false): Promise<ScoutResult> {
       skip("banned");
       continue;
     }
-    if (anchor.likes < MIN_LIKES) {
+
+    const threadText = [anchor.text, anchor !== tweet ? tweet.text : ""]
+      .filter(Boolean)
+      .join("\n---\n");
+    const term = matchedTerm(
+      [threadText, ...tweet.urls, ...anchor.urls].join(" ").toLowerCase()
+    );
+
+    // Likes gate: PH launch posts get in at 0 likes when the AI validates
+    // them (a launch minutes old has none yet); everything else needs a
+    // couple of likes first. AI-unavailable → retry next scan, never block.
+    const phPost = term === "product hunt";
+    if (!phPost && anchor.likes < MIN_LIKES) {
       skip("too-few-likes"); // not seen — retried next scan once likes catch up
       continue;
     }
+    const verdict = await isLaunchPost(threadText, site.domain);
+    if (verdict === false) {
+      seen.add(tweet.id);
+      skip("not-a-launch");
+      continue;
+    }
+    if (verdict === null && anchor.likes < MIN_LIKES) {
+      skip("ai-unavailable"); // 0-like PH post needs the AI's blessing; retry
+      continue;
+    }
 
-    const term = matchedTerm(tweet);
     if (dryRun) {
       added.push(`${site.domain} (dry, via ${term}) @${anchor.authorHandle}`);
       continue;
