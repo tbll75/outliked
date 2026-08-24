@@ -84,48 +84,85 @@ type ApifyTweet = {
   };
 };
 
+function mapApifyTweet(t: ApifyTweet): TweetData | null {
+  if (!t?.id || typeof t.likeCount !== "number") return null;
+  return {
+    id: t.id,
+    text: t.fullText ?? t.text ?? "",
+    urls: (t.entities?.urls ?? [])
+      .map((u) => u.expanded_url)
+      .filter((u): u is string => Boolean(u)),
+    likes: t.likeCount,
+    replies: typeof t.replyCount === "number" ? t.replyCount : undefined,
+    authorHandle: t.author?.userName ?? "",
+    authorName: t.author?.name ?? "",
+    authorAvatar: t.author?.profilePicture ?? "",
+    authorFollowers:
+      typeof t.author?.followers === "number" ? t.author.followers : undefined,
+  };
+}
+
+async function runApifyActor(
+  input: Record<string, unknown>
+): Promise<ApifyTweet[]> {
+  const token = process.env.APIFY_TOKEN;
+  if (!token) return [];
+  const res = await fetch(
+    `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${token}&timeout=50&memory=1024`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+      cache: "no-store",
+    }
+  );
+  if (!res.ok) return [];
+  const items = await res.json();
+  return Array.isArray(items) ? items : [];
+}
+
 export async function fetchTweetsApify(
   tweetUrls: string[]
 ): Promise<Map<string, TweetData>> {
   const out = new Map<string, TweetData>();
-  const token = process.env.APIFY_TOKEN;
-  if (!token || tweetUrls.length === 0) return out;
+  if (tweetUrls.length === 0) return out;
   try {
-    const res = await fetch(
-      `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${token}&timeout=50&memory=1024`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          startUrls: tweetUrls,
-          maxItems: tweetUrls.length,
-        }),
-        cache: "no-store",
-      }
-    );
-    if (!res.ok) return out;
-    const items: ApifyTweet[] = await res.json();
-    if (!Array.isArray(items)) return out;
+    const items = await runApifyActor({
+      startUrls: tweetUrls,
+      maxItems: tweetUrls.length,
+    });
     for (const t of items) {
-      if (!t?.id || typeof t.likeCount !== "number") continue;
-      out.set(t.id, {
-        id: t.id,
-        text: t.fullText ?? t.text ?? "",
-        urls: (t.entities?.urls ?? [])
-          .map((u) => u.expanded_url)
-          .filter((u): u is string => Boolean(u)),
-        likes: t.likeCount,
-        replies: typeof t.replyCount === "number" ? t.replyCount : undefined,
-        authorHandle: t.author?.userName ?? "",
-        authorName: t.author?.name ?? "",
-        authorAvatar: t.author?.profilePicture ?? "",
-        authorFollowers:
-          typeof t.author?.followers === "number" ? t.author.followers : undefined,
-      });
+      const mapped = mapApifyTweet(t);
+      if (mapped) out.set(mapped.id, mapped);
     }
     return out;
   } catch {
     return out;
+  }
+}
+
+/** Search recent tweets matching the given queries (newest first). Used by
+ *  the launch-tweet scout; needs APIFY_TOKEN, returns [] without it. */
+export async function searchTweetsApify(
+  searchTerms: string[],
+  maxItems: number,
+  sinceDaysAgo = 2
+): Promise<TweetData[]> {
+  try {
+    const start = new Date(Date.now() - sinceDaysAgo * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const items = await runApifyActor({
+      searchTerms,
+      maxItems,
+      sort: "Latest",
+      start,
+    });
+    return items
+      .map(mapApifyTweet)
+      .filter((t): t is TweetData => t !== null);
+  } catch {
+    return [];
   }
 }
 

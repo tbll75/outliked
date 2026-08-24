@@ -14,6 +14,7 @@ export type Listing = {
   lastRefreshedAt?: string; // ISO, when likes were last re-fetched
   hasFavicon?: boolean; // false when Google only has its generic globe
   authorFollowers?: number; // author's follower count, when known
+  source?: "scout"; // set when auto-added by the launch-tweet scout
 };
 
 export type Board = {
