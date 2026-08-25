@@ -4,9 +4,15 @@ import { normalizeSiteUrl } from "./config";
 import { EMPTY_MODERATION, isBanned, readModeration } from "./moderation";
 import { checkFavicon, fetchSitePitch } from "./site-meta";
 import { addListing, getAllListings, ListingConflictError } from "./store";
+import { readClicks } from "./clicks";
 import { fetchTweet, searchTweetsApify } from "./tweets";
 import type { Listing, TweetData } from "./types";
-import { postAsOutlike, scoutReplyText, xPostingEnabled } from "./x-post";
+import {
+  postAsOutlike,
+  scoutReplyText,
+  xPostingEnabled,
+  type ScoutReplyStats,
+} from "./x-post";
 
 /** The alternative, zero-friction listing path: a cron scans X for fresh
  *  launch-style tweets and lists the product automatically — no form, no
@@ -199,6 +205,8 @@ export async function scoutLaunchTweets(dryRun = false): Promise<ScoutResult> {
   const listedDomains = new Set(existing.map((l) => l.domain));
   const added: string[] = [];
   const replied: string[] = [];
+  // Board numbers cited in replies; fetched once, on the first add.
+  let replyStats: ScoutReplyStats | null = null;
 
   for (const tweet of tweets) {
     if (added.length >= MAX_ADDS_PER_SCAN) break;
@@ -320,7 +328,16 @@ export async function scoutLaunchTweets(dryRun = false): Promise<ScoutResult> {
       // Best-effort: a failed reply never blocks or retries (add-time is the
       // only reply moment, so a listing can never be replied to twice).
       if (xPostingEnabled()) {
-        const replyId = await postAsOutlike(scoutReplyText(listing), anchor.id);
+        if (!replyStats) {
+          const clicks = await readClicks().catch(() => ({}));
+          replyStats = {
+            sitesListed: existing.length + added.length,
+            totalLikes: existing.reduce((s, l) => s + l.likes, 0),
+            clicksOut: Object.values(clicks).reduce((s, n) => s + n, 0),
+          };
+        }
+        const text = await scoutReplyText(listing, replyStats);
+        const replyId = await postAsOutlike(text, anchor.id);
         if (replyId) replied.push(`${site.domain} → ${replyId}`);
       }
     } catch (e) {

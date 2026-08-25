@@ -148,12 +148,14 @@ function Row({
 export function Board({
   listings,
   updatedAt,
+  initialScope = "all",
 }: {
   listings: Listing[];
   updatedAt: string;
+  initialScope?: "all" | "week";
 }) {
   const [tab, setTabState] = useState("all");
-  const [scope, setScopeState] = useState<"all" | "week">("all");
+  const [scope, setScopeState] = useState<"all" | "week">(initialScope);
   const [page, setPage] = useState(1);
   const setTab = (id: string) => {
     setTabState(id);
