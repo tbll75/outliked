@@ -6,6 +6,7 @@ import { checkFavicon, fetchSitePitch } from "./site-meta";
 import { addListing, getAllListings, ListingConflictError } from "./store";
 import { fetchTweet, searchTweetsApify } from "./tweets";
 import type { Listing, TweetData } from "./types";
+import { postAsOutlike, scoutReplyText, xPostingEnabled } from "./x-post";
 
 /** The alternative, zero-friction listing path: a cron scans X for fresh
  *  launch-style tweets and lists the product automatically — no form, no
@@ -174,6 +175,7 @@ export type ScoutResult = {
   scanned: number;
   fresh: number;
   added: string[];
+  replied: string[];
   skipped: Record<string, number>;
 };
 
@@ -196,6 +198,7 @@ export async function scoutLaunchTweets(dryRun = false): Promise<ScoutResult> {
   const listedIds = new Set(existing.map((l) => l.id));
   const listedDomains = new Set(existing.map((l) => l.domain));
   const added: string[] = [];
+  const replied: string[] = [];
 
   for (const tweet of tweets) {
     if (added.length >= MAX_ADDS_PER_SCAN) break;
@@ -313,6 +316,13 @@ export async function scoutLaunchTweets(dryRun = false): Promise<ScoutResult> {
       listedDomains.add(site.domain);
       seen.add(tweet.id);
       added.push(`${site.domain} (via ${term})`);
+      // Tell the author from @outlike_lol, right under their launch tweet.
+      // Best-effort: a failed reply never blocks or retries (add-time is the
+      // only reply moment, so a listing can never be replied to twice).
+      if (xPostingEnabled()) {
+        const replyId = await postAsOutlike(scoutReplyText(listing), anchor.id);
+        if (replyId) replied.push(`${site.domain} → ${replyId}`);
+      }
     } catch (e) {
       if (e instanceof ListingConflictError) {
         seen.add(tweet.id);
@@ -328,6 +338,7 @@ export async function scoutLaunchTweets(dryRun = false): Promise<ScoutResult> {
     scanned: tweets.length,
     fresh: tweets.length - (skipped["already-seen"] ?? 0),
     added,
+    replied,
     skipped,
   };
 }
