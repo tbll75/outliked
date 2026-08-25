@@ -1,5 +1,4 @@
 import { createHmac, randomBytes } from "node:crypto";
-import { APP_URL } from "./config";
 import type { Listing } from "./types";
 
 /** Post as @outlike_lol via the X API v2 (OAuth 1.0a user context).
@@ -104,27 +103,32 @@ export async function postAsOutlike(
 /** Reply variants for scout-added listings. Deterministic per tweet so a
  *  retried scan can never produce two differently-worded replies, and varied
  *  across listings so the account isn't posting one identical string all day. */
-const REPLY_VARIANTS: ((domain: string, card: string) => string)[] = [
-  (domain, card) =>
-    `congrats on the launch 💗 ${domain} is now live on outliked — the board where likes are the only currency. every like on this tweet pushes it toward #1.\n\nyour rank card: ${card}\n\n(auto-listed, free. want it removed? just reply.)`,
-  (domain, card) =>
-    `${domain} just landed on the outliked board 💗 rank = this tweet's like count, nothing else. rally your people.\n\ntrack your spot: ${card}\n\n(auto-listed, free. want it removed? just reply.)`,
-  (domain, card) =>
-    `we spotted this launch and listed ${domain} on outliked, free — the most-liked launch tweet holds #1, and likes on this tweet are your votes.\n\nyour rank card: ${card}\n\n(want it removed? just reply.)`,
+/** Every reply ends with this sign-off: the site link for the curious and
+ *  the founder's handle for legitimacy — no separate card link needed. */
+const SIGN_OFF = "from outlike.lol by @tibo_maker";
+
+const REPLY_VARIANTS: ((domain: string) => string)[] = [
+  (domain) =>
+    `congrats on the launch 💗 ${domain} is now live on the board — likes are the only currency, and every like on this tweet pushes it toward #1.\n\n(auto-listed, free. want it removed? just reply.)\n\n${SIGN_OFF}`,
+  (domain) =>
+    `${domain} just landed on the board 💗 rank = this tweet's like count, nothing else. rally your people.\n\n(auto-listed, free. want it removed? just reply.)\n\n${SIGN_OFF}`,
+  (domain) =>
+    `we spotted this launch and listed ${domain}, free — the most-liked launch tweet holds #1, and likes on this tweet are the votes.\n\n(want it removed? just reply.)\n\n${SIGN_OFF}`,
 ];
 
-/** X counts every URL as 23 characters regardless of length. */
+/** X counts every URL (incl. bare domains like outlike.lol) as 23 chars. */
 function xCharCount(text: string): number {
-  return text.replace(/https?:\/\/\S+/g, "x".repeat(23)).length;
+  return text
+    .replace(/https?:\/\/\S+/g, "x".repeat(23))
+    .replace(/\boutlike\.lol\b/g, "x".repeat(23)).length;
 }
 
 /** The under-the-launch-tweet reply for a listing the scout just added. */
 export function scoutReplyText(listing: Listing): string {
-  const card = `${APP_URL}/card/${listing.domain}`;
   // Stable pick: last digits of the tweet id.
   const pick = Number(listing.id.slice(-4)) % REPLY_VARIANTS.length;
-  const text = REPLY_VARIANTS[pick](listing.domain, card);
+  const text = REPLY_VARIANTS[pick](listing.domain);
   if (xCharCount(text) <= 280) return text;
   // Unusually long domain: fall back to the minimal form.
-  return `${listing.domain} is now live on outliked 💗 every like on this tweet pushes it toward #1.\n\n${card}\n\n(auto-listed. want it removed? just reply.)`;
+  return `${listing.domain} is now live 💗 every like on this tweet pushes it toward #1.\n\n(auto-listed. want it removed? just reply.)\n\n${SIGN_OFF}`;
 }
