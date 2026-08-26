@@ -8,8 +8,7 @@ import { readClicks } from "./clicks";
 import { fetchTweet, searchTweetsApify } from "./tweets";
 import type { Listing, TweetData } from "./types";
 import {
-  postAsOutlike,
-  scoutReplyText,
+  announceScoutListing,
   xPostingEnabled,
   type ScoutReplyStats,
 } from "./x-post";
@@ -55,6 +54,17 @@ const SKIP_HOSTS = [
   "t.me",
   "reddit.com",
   "medium.com",
+  // code hosts + app stores: launches link them, but they're never the
+  // product's own site, and host-level domains collide with the
+  // one-listing-per-domain rule (the first github.com launch would block
+  // every later one)
+  "github.com",
+  "gitlab.com",
+  "play.google.com",
+  "apps.apple.com",
+  "testflight.apple.com",
+  "chrome.google.com",
+  "chromewebstore.google.com",
   // launch aggregators + review sites people link next to their product
   "g2.com",
   "capterra.com",
@@ -336,9 +346,8 @@ export async function scoutLaunchTweets(dryRun = false): Promise<ScoutResult> {
             clicksOut: Object.values(clicks).reduce((s, n) => s + n, 0),
           };
         }
-        const text = await scoutReplyText(listing, replyStats);
-        const replyId = await postAsOutlike(text, anchor.id);
-        if (replyId) replied.push(`${site.domain} → ${replyId}`);
+        const posted = await announceScoutListing(listing, replyStats);
+        if (posted) replied.push(`${site.domain} → ${posted.mode} ${posted.id}`);
       }
     } catch (e) {
       if (e instanceof ListingConflictError) {

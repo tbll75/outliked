@@ -32,14 +32,16 @@ function pct(s: string): string {
   );
 }
 
-/** Post a tweet, optionally as a reply. Returns the new tweet id, or null
- *  when posting is disabled or the API rejects the request. Never throws. */
-export async function postAsOutlike(
+type XPostFailure = { status: number | null; detail?: string };
+
+/** Post a tweet, optionally as a reply. Resolves to the new tweet id or a
+ *  failure with the HTTP status (null = disabled/network). Never throws. */
+async function postTweet(
   text: string,
   inReplyToTweetId?: string
-): Promise<string | null> {
+): Promise<{ id: string } | XPostFailure> {
   const c = creds();
-  if (!c) return null;
+  if (!c) return { status: null, detail: "posting disabled" };
   const url = "https://api.x.com/2/tweets";
   const oauth: Record<string, string> = {
     oauth_consumer_key: c.key,
@@ -92,18 +94,24 @@ export async function postAsOutlike(
         res.status,
         JSON.stringify(j ?? {}).slice(0, 300)
       );
-      return null;
+      return { status: res.status, detail: j?.detail };
     }
-    return j.data.id;
+    return { id: j.data.id };
   } catch (e) {
     console.error("x post failed", e);
-    return null;
+    return { status: null };
   }
 }
 
-/** Reply variants for scout-added listings. Deterministic per tweet so a
- *  retried scan can never produce two differently-worded replies, and varied
- *  across listings so the account isn't posting one identical string all day. */
+/** Back-compat convenience: post and return the tweet id, or null. */
+export async function postAsOutlike(
+  text: string,
+  inReplyToTweetId?: string
+): Promise<string | null> {
+  const r = await postTweet(text, inReplyToTweetId);
+  return "id" in r ? r.id : null;
+}
+
 /** Every reply ends with this line: the weekly board link (where a fresh
  *  listing is most visible) plus the founder's handle for legitimacy. */
 const SIGN_OFF = "from outlike.lol/weekly by @tibo_maker";
@@ -160,14 +168,14 @@ function fallbackBody(domain: string, s: ScoutReplyStats): string {
   return `congrats on the launch 💗 ${domain} is on this week's board, every like on your tweet moves it up. ${traffic}`;
 }
 
-/** The under-the-launch-tweet reply for a listing the scout just added.
- *  AI-worded per reply so they don't all read identically; falls back to a
- *  fixed template when the model is unavailable or breaks the rules. */
-export async function scoutReplyText(
+/** The announcement body for a listing the scout just added. AI-worded so
+ *  they don't all read identically; falls back to a fixed template when the
+ *  model is unavailable or breaks the rules. Body only — no links, no
+ *  mentions — so the composers below can place it in a reply or a mention. */
+async function scoutReplyBody(
   listing: Listing,
   stats: ScoutReplyStats
 ): Promise<string> {
-  let body: string | null = null;
   try {
     const { text } = await generateText({
       model: "openai/gpt-5-nano",
@@ -187,18 +195,49 @@ export async function scoutReplyText(
       !/https?:\/\//.test(candidate) &&
       !/[—–#]/.test(candidate) &&
       !/@\w/.test(candidate);
-    if (ok) body = candidate;
+    if (ok) return candidate;
   } catch {
     // model unavailable — fall through to the template
   }
-  if (!body) body = fallbackBody(listing.domain, stats);
-  let reply = `${body}\n\n${SIGN_OFF}`;
-  if (xCharCount(reply) > 280) {
-    reply = `${fallbackBody(listing.domain, stats)}\n\n${SIGN_OFF}`;
+  return fallbackBody(listing.domain, stats);
+}
+
+/** Compose body + sign-off under X's 280 limit, degrading through fallback
+ *  and minimal bodies when a long domain (or handle prefix) blows the cap. */
+function composeWithLimit(
+  bodies: string[],
+  listing: Listing,
+  prefix: string
+): string {
+  const minimal = `congrats on the launch 💗 ${listing.domain} is on this week's board, every like on your launch tweet moves it up.`;
+  for (const body of [...bodies, minimal]) {
+    const text = `${prefix}${body}\n\n${SIGN_OFF}`;
+    if (xCharCount(text) <= 280) return text;
   }
-  if (xCharCount(reply) > 280) {
-    // Unusually long domain: minimal form.
-    reply = `congrats on the launch 💗 ${listing.domain} is on this week's board, every like on your tweet moves it up.\n\n${SIGN_OFF}`;
-  }
-  return reply;
+  return `${prefix}${listing.domain} is on this week's board 💗\n\n${SIGN_OFF}`;
+}
+
+/** Announce a scout-added listing from @outlike_lol. Tries a reply under the
+ *  launch tweet first; the current X API tier rejects replies to posts that
+ *  don't mention us (403 not-authorized-for-resource), so on exactly that
+ *  failure it posts a standalone tweet @mentioning the maker instead — same
+ *  notification for them, and it works within the tier's rules. If X ever
+ *  allows replies (tier upgrade), threads resume automatically. */
+export async function announceScoutListing(
+  listing: Listing,
+  stats: ScoutReplyStats
+): Promise<{ id: string; mode: "reply" | "mention" } | null> {
+  if (!xPostingEnabled()) return null;
+  const body = await scoutReplyBody(listing, stats);
+  const fallback = fallbackBody(listing.domain, stats);
+  const bodies = body === fallback ? [body] : [body, fallback];
+
+  const reply = composeWithLimit(bodies, listing, "");
+  const r = await postTweet(reply, listing.id);
+  if ("id" in r) return { id: r.id, mode: "reply" };
+  if (r.status !== 403) return null;
+
+  const mention = composeWithLimit(bodies, listing, `@${listing.authorHandle} `);
+  const m = await postTweet(mention);
+  return "id" in m ? { id: m.id, mode: "mention" } : null;
 }
